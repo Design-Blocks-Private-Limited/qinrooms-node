@@ -14,19 +14,27 @@ const BookingSchema = new mongoose.Schema({
 
     // Guest Info
     bookerName: { type: String, required: true },
+    bookerEmail: { type: String }, // Good practice to include
 
     // Booking Details
     status: { type: String, default: 'upcoming' }, // 'upcoming', 'active', 'completed', 'cancelled'
     checkInDate: { type: Date, required: true },
     checkOutDate: { type: Date, required: true },
     totalPrice: { type: Number, required: true },
-
-    // ✅ FIXED: Matches your backend transaction logic (checkInOtp)
-    checkInOtp: { type: String, required: true }, 
     
-    // Check-in tracking
+    // Breakdowns (Optional but matches your frontend code)
+    priceBreakdown: {
+        nights: Number,
+        basePrice: Number,
+        serviceFee: Number,
+        taxes: Number
+    },
+
+    // Check-in tracking & OTP
+    checkInOtp: { type: String, required: true }, 
     checkInConfirmed: { type: Boolean, default: false },
     checkedInAt: { type: Date }
+    
 }, { 
     strict: false, // Useful for legacy/migrated data compatibility
     timestamps: true 

@@ -67,48 +67,12 @@ router.patch('/users/:id', async (req, res) => {
     }
 });
 
-// ✅ 6. CREATE NEW ADMIN USER
-router.post('/create-admin', async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
-
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: 'Name, email, and password are required.' });
-        }
-
-        // 1. Create the user securely in Firebase Authentication
-        const firebaseUser = await admin.auth().createUser({
-            email: email,
-            password: password,
-            displayName: name,
-        });
-
-        // 2. Save the user in MongoDB using the Firebase UID, flagging them as an Admin
-        const newAdmin = new User({
-            _id: firebaseUser.uid,
-            name: name,
-            email: email,
-            isAdmin: true,
-            isHost: false, // Admins usually aren't hosts by default
-            phoneNumber: '' 
-        });
-
-        await newAdmin.save();
-
-        res.status(201).json({ success: true, user: newAdmin });
-    } catch (error) {
-        console.error("Create Admin Error:", error);
-        // If Firebase throws an error (like "email already exists"), send it to the frontend
-        res.status(400).json({ error: error.message || 'Failed to create admin user' });
-    }
-});
-
 // ✅ 5. DELETE USER (Wipe from Firebase, MongoDB, AND Delete their Listings)
 router.delete('/users/:id', async (req, res) => {
     try {
         const userId = req.params.id;
 
-        // 👇 ADD THIS SAFEGUARD 👇
+        // SAFEGUARD: Prevent admin from deleting themselves
         if (req.user.uid === userId) {
             return res.status(403).json({ error: "Action Denied: You cannot delete your own Master Admin account." });
         }
@@ -143,6 +107,78 @@ router.delete('/users/:id', async (req, res) => {
     } catch (error) {
         console.error("Admin Delete User Error:", error);
         res.status(500).json({ error: 'Failed to completely delete user and their data' });
+    }
+});
+
+// ✅ 6. CREATE NEW ADMIN USER
+router.post('/create-admin', async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: 'Name, email, and password are required.' });
+        }
+
+        // 1. Create the user securely in Firebase Authentication
+        const firebaseUser = await admin.auth().createUser({
+            email: email,
+            password: password,
+            displayName: name,
+        });
+
+        // 2. Save the user in MongoDB using the Firebase UID, flagging them as an Admin
+        const newAdmin = new User({
+            _id: firebaseUser.uid,
+            name: name,
+            email: email,
+            isAdmin: true,
+            isHost: false, 
+            phoneNumber: '' 
+        });
+
+        await newAdmin.save();
+
+        res.status(201).json({ success: true, user: newAdmin });
+    } catch (error) {
+        console.error("Create Admin Error:", error);
+        res.status(400).json({ error: error.message || 'Failed to create admin user' });
+    }
+});
+
+// ✅ 7. UPDATE BOOKING (Force Check-In, Cancel, etc.)
+router.patch('/bookings/:id', async (req, res) => {
+    try {
+        // Automatically applies whatever the frontend sends (e.g. { checkInConfirmed: true } or { status: 'cancelled' })
+        const updatedBooking = await Booking.findByIdAndUpdate(
+            req.params.id, 
+            { $set: req.body }, 
+            { new: true }
+        );
+
+        if (!updatedBooking) {
+            return res.status(404).json({ error: 'Booking not found in database' });
+        }
+
+        res.json(updatedBooking);
+    } catch (error) {
+        console.error("Admin Update Booking Error:", error);
+        res.status(500).json({ error: 'Failed to update booking' });
+    }
+});
+
+// ✅ 8. DELETE BOOKING (Completely wipe record from database)
+router.delete('/bookings/:id', async (req, res) => {
+    try {
+        const deletedBooking = await Booking.findByIdAndDelete(req.params.id);
+        
+        if (!deletedBooking) {
+            return res.status(404).json({ error: 'Booking not found' });
+        }
+
+        res.json({ success: true, message: 'Booking permanently deleted.' });
+    } catch (error) {
+        console.error("Admin Delete Booking Error:", error);
+        res.status(500).json({ error: 'Failed to delete booking' });
     }
 });
 
