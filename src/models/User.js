@@ -7,6 +7,10 @@ const UserSchema = new mongoose.Schema({
     phoneNumber: { type: String },
     photoURL: { type: String, default: null },
     isHost: { type: Boolean, default: false },
+    
+    // 👇 ADD THIS LINE FOR THE MASTER ADMIN PANEL 👇
+    isAdmin: { type: Boolean, default: false }, 
+    
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);

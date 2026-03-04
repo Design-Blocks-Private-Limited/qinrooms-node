@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing'); 
+const User = require('../models/User'); // ✅ 1. ADDED: Need this to check if user is Admin
 const { requireAuth } = require('../middlewares/authMiddleware');
 
 // GET /api/listings?type=house
@@ -22,7 +23,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-// ✅ MOVED ABOVE /:id 
 // GET all listings for the logged-in Host
 router.get('/my-host-listings', requireAuth, async (req, res) => {
     try {
@@ -44,7 +44,7 @@ router.get('/:id', async (req, res) => {
         
         res.json({ id: listing._id, ...listing._doc });
     } catch (error) {
-        // ✅ CATCH MONGOOSE CAST ERRORS (Invalid ID formats)
+        // CATCH MONGOOSE CAST ERRORS (Invalid ID formats)
         if (error.name === 'CastError') {
             return res.status(404).json({ error: 'Listing not found (Invalid ID format)' });
         }
@@ -73,13 +73,23 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
-// PATCH: Update specific fields of a listing
+// ✅ UPDATED PATCH: Update specific fields of a listing
 router.patch('/:id', requireAuth, async (req, res) => {
     try {
-        // Ensure the listing belongs to the logged-in host before allowing updates
+        // 1. Check if the user making the request is an Admin
+        const user = await User.findById(req.user.uid);
+        const isAdmin = user && user.isAdmin;
+
+        // 2. Build the query safely
+        const query = { _id: req.params.id };
+        if (!isAdmin) {
+            // If they are NOT an Admin, enforce the lock
+            query.hostId = req.user.uid; 
+        }
+
         const listing = await Listing.findOneAndUpdate(
-            { _id: req.params.id, hostId: req.user.uid },
-            { $set: req.body }, // Only updates the fields provided in the payload
+            query,
+            { $set: req.body }, 
             { new: true }
         );
 
@@ -94,10 +104,22 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
 });
 
-// DELETE a listing
+// ✅ UPDATED DELETE a listing
 router.delete('/:id', requireAuth, async (req, res) => {
     try {
-        const listing = await Listing.findOneAndDelete({ _id: req.params.id, hostId: req.user.uid });
+        // 1. Check if the user making the request is an Admin
+        const user = await User.findById(req.user.uid);
+        const isAdmin = user && user.isAdmin;
+
+        // 2. Build the query safely
+        const query = { _id: req.params.id };
+        if (!isAdmin) {
+            // If they are NOT an Admin, enforce the lock
+            query.hostId = req.user.uid; 
+        }
+
+        const listing = await Listing.findOneAndDelete(query);
+        
         if (!listing) {
             return res.status(404).json({ error: 'Listing not found or unauthorized' });
         }

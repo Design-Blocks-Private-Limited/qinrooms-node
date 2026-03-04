@@ -1,4 +1,5 @@
 const admin = require('../config/firebase');
+const User = require('../models/User'); // 👈 Import your MongoDB User model
 
 const requireAuth = async (req, res, next) => {
     try {
@@ -24,4 +25,25 @@ const requireAuth = async (req, res, next) => {
     }
 };
 
-module.exports = { requireAuth };
+// 👇 NEW: Master Admin Check 👇
+const requireAdmin = async (req, res, next) => {
+    try {
+        // We assume requireAuth runs first, so req.user is already populated
+        const uid = req.user.uid;
+
+        // Find the user in MongoDB (since your UserSchema uses _id for the Firebase UID)
+        const user = await User.findById(uid);
+
+        // Check if they exist AND are an admin
+        if (!user || user.isAdmin !== true) {
+            return res.status(403).json({ error: 'Forbidden: Master Admin access required' });
+        }
+
+        next(); // They have the master key! Proceed to the route.
+    } catch (error) {
+        console.error('Admin Auth Error:', error);
+        res.status(500).json({ error: 'Server error checking admin privileges' });
+    }
+};
+
+module.exports = { requireAuth, requireAdmin }; // 👈 Export both
