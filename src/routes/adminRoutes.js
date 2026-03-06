@@ -34,6 +34,22 @@ router.get('/listings', async (req, res) => {
     }
 });
 
+// ✅ 2.5 ADDED THIS MISSING ROUTE: DELETE LISTING
+router.delete('/listings/:id', async (req, res) => {
+    try {
+        const deletedListing = await Listing.findByIdAndDelete(req.params.id);
+        
+        if (!deletedListing) {
+            return res.status(404).json({ error: 'Listing not found in database' });
+        }
+
+        res.json({ success: true, message: 'Property permanently deleted.' });
+    } catch (error) {
+        console.error("Admin Delete Listing Error:", error);
+        res.status(500).json({ error: 'Failed to delete listing from server' });
+    }
+});
+
 // 3. GET ALL BOOKINGS
 router.get('/bookings', async (req, res) => {
     try {
