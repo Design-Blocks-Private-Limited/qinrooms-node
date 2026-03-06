@@ -4,12 +4,22 @@ const Listing = require('../models/Listing');
 const User = require('../models/User'); // ✅ 1. ADDED: Need this to check if user is Admin
 const { requireAuth } = require('../middlewares/authMiddleware');
 
-// GET /api/listings?type=house
+// GET /api/listings?type=House,Apartment,Barn
 router.get('/', async (req, res) => {
     try {
         const { type } = req.query;
         const filter = { status: 'active' };
-        if (type) filter.type = type;
+        
+        // ✅ UPDATED: Split the comma-separated string into an array for MongoDB
+        if (type) {
+            const typesArray = type.split(','); // Turns 'House,Apartment' into ['House', 'Apartment']
+            
+            // Make it case-insensitive just in case (House vs house)
+            const regexArray = typesArray.map(t => new RegExp(`^${t.trim()}$`, 'i'));
+            
+            // Use $in to say "Find any listing where type matches ONE of these"
+            filter.type = { $in: regexArray };
+        }
 
         // Fetch listings, sort by newest
         const listings = await Listing.find(filter).sort({ createdAt: -1 });
