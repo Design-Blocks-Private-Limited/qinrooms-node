@@ -3,6 +3,7 @@ const router = express.Router();
 const Listing = require('../models/Listing'); 
 const User = require('../models/User'); // ✅ 1. ADDED: Need this to check if user is Admin
 const { requireAuth } = require('../middlewares/authMiddleware');
+const { getPricing } = require('../controllers/pricingController');
 
 // GET /api/listings?type=House,Apartment,Barn
 router.get('/', async (req, res) => {
@@ -45,6 +46,8 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch your listings' });
     }
 });
+
+router.get('/pricing', getPricing);
 
 // GET a single listing by ID (Now safely handling Firebase IDs)
 router.get('/:id', async (req, res) => {

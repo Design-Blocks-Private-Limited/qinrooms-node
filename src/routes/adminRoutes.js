@@ -4,6 +4,8 @@ const User = require('../models/User');
 const Listing = require('../models/Listing');
 const Booking = require('../models/Booking');
 
+const { getPricing, updatePricing } = require('../controllers/pricingController');
+
 // ✅ 1. IMPORT FIREBASE ADMIN SDK (Required to delete the auth account)
 const admin = require('../config/firebase'); 
 
@@ -197,5 +199,7 @@ router.delete('/bookings/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete booking' });
     }
 });
+
+router.put('/pricing', updatePricing);
 
 module.exports = router;
