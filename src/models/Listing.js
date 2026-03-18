@@ -19,7 +19,12 @@ const ListingSchema = new mongoose.Schema({
     // Availability embedded directly
     minNights: { type: Number, default: 1 },
     inventoryCount: { type: Number, default: 1 },
-    availability: { type: Map, of: Object, default: {} } 
+    availability: { type: Map, of: Object, default: {} },
+    
+    // ✅ NEW: Review System Fields
+    averageRating: { type: Number, default: 0 },
+    reviewCount: { type: Number, default: 0 }
+    
 }, { timestamps: true });
 
 module.exports = mongoose.model('Listing', ListingSchema);

@@ -7,12 +7,14 @@ const http = require('http'); // ✅ IMPORT HTTP
 const { Server } = require('socket.io'); // ✅ IMPORT SOCKET.IO
 const connectDB = require('./config/db');
 
+// --- ROUTE IMPORTS ---
 const userRoutes = require('./routes/userRoutes');
 const listingRoutes = require('./routes/listingRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const chatRoutes = require('./routes/chatRoutes');
-const adminRoutes = require('./routes/adminRoutes'); // ✅ 1. IMPORT ADMIN ROUTES
+const adminRoutes = require('./routes/adminRoutes'); 
+const reviewRoutes = require('./routes/reviewRoutes'); // ✅ IMPORT REVIEWS ROUTE
 
 const app = express();
 
@@ -47,14 +49,16 @@ app.use(express.json());
 
 connectDB();
 
+// --- MOUNT ROUTES ---
 app.use('/api/users', userRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/wishlists', wishlistRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/chats', chatRoutes);
+app.use('/api/reviews', reviewRoutes); // ✅ MOUNT REVIEWS ROUTE HERE
 
-// ✅ 2. MOUNT ADMIN ROUTES (Protected by the middleware we just wrote)
+// ✅ MOUNT ADMIN ROUTES (Protected by middleware)
 app.use('/api/admin', adminRoutes); 
 
 app.get('/', (req, res) => {
