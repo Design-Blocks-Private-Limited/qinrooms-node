@@ -4,6 +4,23 @@ const Review = require('../models/Review');
 const Listing = require('../models/Listing');
 const { requireAuth } = require('../middlewares/authMiddleware');
 
+// 🛠️ HELPER FUNCTION: Recalculate listing rating when reviews change
+const updateListingRating = async (listingId) => {
+    const allListingReviews = await Review.find({ listingId });
+    const reviewCount = allListingReviews.length;
+    
+    let averageRating = 0;
+    if (reviewCount > 0) {
+        const totalRatingScore = allListingReviews.reduce((sum, rev) => sum + rev.rating, 0);
+        averageRating = (totalRatingScore / reviewCount).toFixed(1);
+    }
+
+    await Listing.findByIdAndUpdate(listingId, {
+        averageRating: parseFloat(averageRating),
+        reviewCount: reviewCount
+    });
+};
+
 // 1. GET ALL REVIEWS FOR A SPECIFIC LISTING (Public Route)
 router.get('/listing/:listingId', async (req, res) => {
     try {
@@ -22,7 +39,6 @@ router.post('/', requireAuth, async (req, res) => {
         const { listingId, rating, comment, reviewerName, reviewerImage } = req.body;
         const reviewerId = req.user.uid;
 
-        // 1. Validate Input
         if (!rating || rating < 1 || rating > 5) {
             return res.status(400).json({ error: 'Please provide a valid rating between 1 and 5.' });
         }
@@ -30,7 +46,6 @@ router.post('/', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Please write a comment for your review.' });
         }
 
-        // 2. Create and Save the Review
         const newReview = new Review({
             listingId,
             reviewerId,
@@ -41,26 +56,13 @@ router.post('/', requireAuth, async (req, res) => {
         });
 
         await newReview.save();
-
-        // 3. SMART CALCULATION: Update the Listing's Average Rating
-        const allListingReviews = await Review.find({ listingId });
         
-        const totalRatingScore = allListingReviews.reduce((sum, rev) => sum + rev.rating, 0);
-        const reviewCount = allListingReviews.length;
-        
-        // Calculate average to 1 decimal place (e.g., 4.7)
-        const averageRating = (totalRatingScore / reviewCount).toFixed(1);
-
-        // Update the Listing document
-        await Listing.findByIdAndUpdate(listingId, {
-            averageRating: parseFloat(averageRating),
-            reviewCount: reviewCount
-        });
+        // Update math
+        await updateListingRating(listingId);
 
         res.status(201).json({ message: "Review posted successfully!", review: newReview });
 
     } catch (error) {
-        // Catch the unique index error if they try to review twice
         if (error.code === 11000) {
             return res.status(400).json({ error: "You have already reviewed this listing." });
         }
@@ -69,7 +71,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
-// ✅ 3. HOST REPLY TO A REVIEW (Protected Route)
+// 3. HOST REPLY TO A REVIEW (Protected Route)
 router.patch('/:reviewId/reply', requireAuth, async (req, res) => {
     try {
         const { reply } = req.body;
@@ -79,27 +81,18 @@ router.patch('/:reviewId/reply', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Reply text cannot be empty.' });
         }
 
-        // 1. Find the specific review
         const review = await Review.findById(req.params.reviewId);
-        if (!review) {
-            return res.status(404).json({ error: 'Review not found.' });
-        }
+        if (!review) return res.status(404).json({ error: 'Review not found.' });
 
-        // 2. Find the listing to verify ownership
         const listing = await Listing.findById(review.listingId);
-        if (!listing) {
-            return res.status(404).json({ error: 'Listing associated with this review not found.' });
-        }
+        if (!listing) return res.status(404).json({ error: 'Listing not found.' });
 
-        // 3. SECURITY CHECK: Ensure the logged-in user is the actual host of this listing
         if (listing.hostId !== hostId) {
-            return res.status(403).json({ error: 'Unauthorized: Only the host of this property can reply.' });
+            return res.status(403).json({ error: 'Unauthorized: Only the host can reply.' });
         }
 
-        // 4. Update the review with the host's reply
         review.hostReply = reply;
         review.hostReplyDate = new Date();
-        
         await review.save();
 
         res.json({ message: "Reply posted successfully!", review });
@@ -107,6 +100,50 @@ router.patch('/:reviewId/reply', requireAuth, async (req, res) => {
     } catch (error) {
         console.error("Error posting host reply:", error);
         res.status(500).json({ error: 'Failed to post reply' });
+    }
+});
+
+// 4. UPDATE/EDIT A REVIEW AS A GUEST (Protected Route)
+router.patch('/:id', requireAuth, async (req, res) => {
+    try {
+        const { rating, comment } = req.body;
+        
+        if (rating && (rating < 1 || rating > 5)) {
+            return res.status(400).json({ error: 'Please provide a valid rating between 1 and 5.' });
+        }
+
+        const review = await Review.findOneAndUpdate(
+            { _id: req.params.id, reviewerId: req.user.uid }, 
+            { rating, comment }, 
+            { new: true }
+        );
+        
+        if (!review) return res.status(404).json({ error: 'Review not found or unauthorized' });
+
+        // Update math if rating changed
+        await updateListingRating(review.listingId);
+
+        res.json(review);
+    } catch (error) { 
+        console.error("Error updating review:", error);
+        res.status(500).json({ error: 'Failed to update review' }); 
+    }
+});
+
+// 5. DELETE A REVIEW AS A GUEST (Protected Route)
+router.delete('/:id', requireAuth, async (req, res) => {
+    try {
+        const review = await Review.findOneAndDelete({ _id: req.params.id, reviewerId: req.user.uid });
+        
+        if (!review) return res.status(404).json({ error: 'Review not found or unauthorized' });
+
+        // Update math because a review was removed
+        await updateListingRating(review.listingId);
+
+        res.json({ message: 'Review deleted successfully' });
+    } catch (error) { 
+        console.error("Error deleting review:", error);
+        res.status(500).json({ error: 'Failed to delete review' }); 
     }
 });
 
