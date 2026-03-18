@@ -71,7 +71,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
-// 3. HOST REPLY TO A REVIEW (Protected Route)
+// 3. HOST CREATE/EDIT REPLY TO A REVIEW (Protected Route)
 router.patch('/:reviewId/reply', requireAuth, async (req, res) => {
     try {
         const { reply } = req.body;
@@ -144,6 +144,31 @@ router.delete('/:id', requireAuth, async (req, res) => {
     } catch (error) { 
         console.error("Error deleting review:", error);
         res.status(500).json({ error: 'Failed to delete review' }); 
+    }
+});
+
+// ✅ 6. DELETE A HOST REPLY (Protected Route)
+router.delete('/:reviewId/reply', requireAuth, async (req, res) => {
+    try {
+        const hostId = req.user.uid;
+        
+        const review = await Review.findById(req.params.reviewId);
+        if (!review) return res.status(404).json({ error: 'Review not found.' });
+
+        const listing = await Listing.findById(review.listingId);
+        if (!listing || listing.hostId !== hostId) {
+            return res.status(403).json({ error: 'Unauthorized: Only the host can delete this reply.' });
+        }
+
+        // Clear the host reply fields
+        review.hostReply = null;
+        review.hostReplyDate = null;
+        await review.save();
+
+        res.json({ message: "Host reply deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting host reply:", error);
+        res.status(500).json({ error: 'Failed to delete reply' });
     }
 });
 
