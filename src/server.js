@@ -14,7 +14,8 @@ const wishlistRoutes = require('./routes/wishlistRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const adminRoutes = require('./routes/adminRoutes'); 
-const reviewRoutes = require('./routes/reviewRoutes'); // ✅ IMPORT REVIEWS ROUTE
+const reviewRoutes = require('./routes/reviewRoutes'); 
+const supportRoutes = require('./routes/supportRoutes'); // ✅ IMPORT SUPPORT ROUTE
 
 const app = express();
 
@@ -56,7 +57,8 @@ app.use('/api/wishlists', wishlistRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/chats', chatRoutes);
-app.use('/api/reviews', reviewRoutes); // ✅ MOUNT REVIEWS ROUTE HERE
+app.use('/api/reviews', reviewRoutes); 
+app.use('/api/support', supportRoutes); // ✅ MOUNT SUPPORT ROUTE HERE
 
 // ✅ MOUNT ADMIN ROUTES (Protected by middleware)
 app.use('/api/admin', adminRoutes); 
@@ -66,6 +68,7 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+
 // ✅ CHANGE app.listen to server.listen
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
