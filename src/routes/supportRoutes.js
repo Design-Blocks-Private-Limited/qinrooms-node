@@ -3,27 +3,48 @@ const router = express.Router();
 const SupportTicket = require('../models/SupportTicket');
 const { requireAuth } = require('../middlewares/authMiddleware');
 
-// CREATE A NEW SUPPORT TICKET (From Mobile App)
-router.post('/', requireAuth, async (req, res) => {
+// 1. GET ACTIVE CHAT HISTORY
+router.get('/', requireAuth, async (req, res) => {
     try {
-        const { issue } = req.body;
+        const ticket = await SupportTicket.findOne({ userId: req.user.uid, status: 'open' });
+        res.json(ticket || { messages: [] });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch support chat.' });
+    }
+});
+
+// 2. SEND A NEW MESSAGE IN CHAT
+router.post('/message', requireAuth, async (req, res) => {
+    try {
+        const { text, userName } = req.body;
         
-        if (!issue || issue.trim().length === 0) {
-            return res.status(400).json({ error: 'Please describe your issue.' });
+        if (!text || !text.trim()) {
+            return res.status(400).json({ error: 'Message cannot be empty.' });
         }
 
-        const ticket = new SupportTicket({
-            userId: req.user.uid,
-            userName: req.user.name || req.body.userName || "Guest User",
-            issue: issue.trim()
+        let ticket = await SupportTicket.findOne({ userId: req.user.uid, status: 'open' });
+
+        // If the user doesn't have an open ticket, create a new chat session
+        if (!ticket) {
+            ticket = new SupportTicket({
+                userId: req.user.uid,
+                userName: userName || req.user.name || "Guest User",
+                messages: []
+            });
+        }
+
+        // Push the new message to the chat
+        ticket.messages.push({
+            sender: 'user',
+            text: text.trim()
         });
 
         await ticket.save();
-        res.status(201).json({ message: 'Ticket submitted successfully.', ticket });
+        res.status(201).json(ticket);
 
     } catch (error) {
-        console.error("Error creating support ticket:", error);
-        res.status(500).json({ error: 'Failed to submit issue.' });
+        console.error("Error sending support message:", error);
+        res.status(500).json({ error: 'Failed to send message.' });
     }
 });
 
