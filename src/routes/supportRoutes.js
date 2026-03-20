@@ -16,7 +16,8 @@ router.get('/', requireAuth, async (req, res) => {
 // 2. SEND A NEW MESSAGE IN CHAT (For Mobile App)
 router.post('/message', requireAuth, async (req, res) => {
     try {
-        const { text, userName } = req.body;
+        // ✅ ADDED userEmail and userPhone here
+        const { text, userName, userEmail, userPhone } = req.body;
         
         if (!text || !text.trim()) {
             return res.status(400).json({ error: 'Message cannot be empty.' });
@@ -29,6 +30,8 @@ router.post('/message', requireAuth, async (req, res) => {
             ticket = new SupportTicket({
                 userId: req.user.uid,
                 userName: userName || req.user.name || "Guest User",
+                userEmail: userEmail || "", // ✅ Save to DB
+                userPhone: userPhone || "", // ✅ Save to DB
                 messages: []
             });
         }
