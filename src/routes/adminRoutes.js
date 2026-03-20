@@ -3,8 +3,10 @@ const router = express.Router();
 const User = require('../models/User');
 const Listing = require('../models/Listing');
 const Booking = require('../models/Booking');
+const SupportTicket = require('../models/SupportTicket');
 
 const { getPricing, updatePricing } = require('../controllers/pricingController');
+
 
 // ✅ 1. IMPORT FIREBASE ADMIN SDK (Required to delete the auth account)
 const admin = require('../config/firebase'); 
@@ -201,5 +203,52 @@ router.delete('/bookings/:id', async (req, res) => {
 });
 
 router.put('/pricing', updatePricing);
+
+router.get('/support-tickets', async (req, res) => {
+    try {
+        const tickets = await SupportTicket.find().sort({ updatedAt: -1 });
+        res.json(tickets);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+});
+
+// 2. ADMIN REPLIES TO A TICKET
+router.post('/support-tickets/:ticketId/message', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text || !text.trim()) return res.status(400).json({ error: 'Message empty' });
+
+        const ticket = await SupportTicket.findById(req.params.ticketId);
+        if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+        ticket.messages.push({
+            sender: 'admin',
+            text: text.trim()
+        });
+        
+        // Re-open the ticket if the admin replies to a resolved one
+        if (ticket.status === 'resolved') ticket.status = 'open';
+
+        await ticket.save();
+        res.json(ticket);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
+// 3. MARK TICKET AS RESOLVED
+router.patch('/support-tickets/:ticketId/resolve', async (req, res) => {
+    try {
+        const ticket = await SupportTicket.findByIdAndUpdate(
+            req.params.ticketId, 
+            { status: 'resolved' }, 
+            { new: true }
+        );
+        res.json(ticket);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to resolve ticket' });
+    }
+});
 
 module.exports = router;
