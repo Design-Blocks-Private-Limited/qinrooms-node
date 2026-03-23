@@ -11,6 +11,14 @@ const UserSchema = new mongoose.Schema({
     // 👇 ADD THIS LINE FOR THE MASTER ADMIN PANEL 👇
     isAdmin: { type: Boolean, default: false }, 
     
+    // ✅ ADDED THIS BLOCK FOR SAVED ADDRESSES
+    addresses: [{
+        label: String, // e.g., "Home", "Work"
+        address: String, // e.g., "123 Main St, Visakhapatnam"
+        latitude: Number,
+        longitude: Number,
+        icon: { type: String, default: 'location' }
+    }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);
