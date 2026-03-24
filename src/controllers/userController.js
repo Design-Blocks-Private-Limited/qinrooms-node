@@ -3,13 +3,8 @@ const User = require('../models/User');
 // --- 1. GET CURRENT USER PROFILE ---
 const getMyProfile = async (req, res) => {
     try {
-        // req.user.uid is securely provided by the authMiddleware
         const user = await User.findById(req.user.uid);
-        
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
+        if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
     } catch (error) {
         console.error("Fetch profile error:", error);
@@ -20,17 +15,12 @@ const getMyProfile = async (req, res) => {
 // --- 2. UPDATE CURRENT USER PROFILE ---
 const updateMyProfile = async (req, res) => {
     try {
-        // Only update the fields provided in the request body
         const updatedUser = await User.findByIdAndUpdate(
             req.user.uid, 
             { $set: req.body }, 
-            { new: true } // Returns the updated document instead of the old one
+            { new: true }
         );
-        
-        if (!updatedUser) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
+        if (!updatedUser) return res.status(404).json({ error: 'User not found' });
         res.json(updatedUser);
     } catch (error) {
         console.error("Update profile error:", error);
@@ -38,22 +28,26 @@ const updateMyProfile = async (req, res) => {
     }
 };
 
-// --- 3. REGISTER NEW USER IN MONGODB ---
+// --- 3. REGISTER OR LOGIN USER IN MONGODB ---
 const registerUser = async (req, res) => {
     try {
-        const { name, phoneNumber, email, isHost } = req.body;
+        const { name, phoneNumber, email, isHost, photoURL } = req.body;
         
-        // Create the new user mapping the Firebase UID directly to the MongoDB _id
+        let existingUser = await User.findById(req.user.uid);
+        if (existingUser) {
+            return res.status(200).json(existingUser);
+        }
+
         const newUser = new User({
             _id: req.user.uid, 
-            name,
-            phoneNumber,
-            email,
+            name: name || "New User",
+            phoneNumber: phoneNumber || "", 
+            email: email,
+            photoURL: photoURL || null,     
             isHost: isHost || false
         });
 
         await newUser.save();
-        
         res.status(201).json(newUser);
     } catch (error) {
         console.error("Registration error:", error);
@@ -61,8 +55,20 @@ const registerUser = async (req, res) => {
     }
 };
 
+// --- 4. SAVE EXPO PUSH TOKEN ---
+const savePushToken = async (req, res) => {
+    try {
+        const { pushToken } = req.body;
+        await User.findByIdAndUpdate(req.user.uid, { pushToken });
+        res.status(200).json({ message: "Push token saved" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to save push token" });
+    }
+};
+
 module.exports = { 
     getMyProfile, 
     updateMyProfile, 
-    registerUser 
+    registerUser,
+    savePushToken
 };

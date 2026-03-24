@@ -3,7 +3,6 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const { requireAuth } = require('../middlewares/authMiddleware');
 
-// Define a simple Schema directly here since it doesn't need much logic
 const WishlistSchema = new mongoose.Schema({
     userId: { type: String, required: true },
     name: { type: String, required: true },
@@ -23,17 +22,56 @@ router.get('/', requireAuth, async (req, res) => {
     }
 });
 
+// ✅ NEW: SYNC GUEST WISHLISTS UPON LOGIN
+router.post('/sync', requireAuth, async (req, res) => {
+    try {
+        const { guestWishlists } = req.body; // Expects an array: [{ name: "Favorites", items: [...] }]
+        
+        if (!guestWishlists || guestWishlists.length === 0) {
+            return res.json({ success: true, message: "Nothing to sync" });
+        }
+
+        for (let gw of guestWishlists) {
+            // Find if this user already has a wishlist with this name
+            let existingList = await Wishlist.findOne({ userId: req.user.uid, name: gw.name });
+            
+            if (existingList) {
+                // Merge items safely to avoid duplicates
+                const newItems = gw.items.filter(gItem => 
+                    !existingList.items.some(eItem => eItem.listingId === gItem.listingId)
+                );
+                
+                if (newItems.length > 0) {
+                    existingList.items.push(...newItems);
+                    await existingList.save();
+                }
+            } else {
+                // Create brand new wishlist folder from the guest data
+                const newList = new Wishlist({
+                    userId: req.user.uid,
+                    name: gw.name,
+                    items: gw.items
+                });
+                await newList.save();
+            }
+        }
+
+        res.status(200).json({ success: true, message: "Wishlists synced successfully" });
+    } catch (error) {
+        console.error("Sync error:", error);
+        res.status(500).json({ error: 'Failed to sync wishlists' });
+    }
+});
+
 // POST: Create a new wishlist folder
 router.post('/', requireAuth, async (req, res) => {
     try {
         const { name, item } = req.body;
-        
         const newWishlist = new Wishlist({
             userId: req.user.uid,
             name: name,
-            items: item ? [item] : [] // Add item immediately if provided
+            items: item ? [item] : [] 
         });
-
         await newWishlist.save();
         res.status(201).json({ id: newWishlist._id, ...newWishlist._doc });
     } catch (error) {
@@ -47,7 +85,7 @@ router.put('/:id/add', requireAuth, async (req, res) => {
         const { item } = req.body;
         const wishlist = await Wishlist.findOneAndUpdate(
             { _id: req.params.id, userId: req.user.uid },
-            { $addToSet: { items: item } }, // Prevents duplicates if listingId matches
+            { $addToSet: { items: item } }, 
             { new: true }
         );
         if (!wishlist) return res.status(404).json({ error: 'Wishlist not found' });
@@ -63,7 +101,7 @@ router.put('/:id/remove', requireAuth, async (req, res) => {
         const { listingId } = req.body;
         const wishlist = await Wishlist.findOneAndUpdate(
             { _id: req.params.id, userId: req.user.uid },
-            { $pull: { items: { listingId: listingId } } }, // Replaces arrayRemove
+            { $pull: { items: { listingId: listingId } } }, 
             { new: true }
         );
         if (!wishlist) return res.status(404).json({ error: 'Wishlist not found' });
