@@ -78,8 +78,12 @@ const cancelBooking = async (req, res) => {
         const listing = await Listing.findById(booking.listingId).session(session);
         if (listing) {
             const updates = {};
+            
+            // ✅ FIX: NORMALIZE TO MIDNIGHT TO PREVENT TIMEZONE BUGS
             let loop = new Date(booking.checkInDate);
+            loop.setUTCHours(0, 0, 0, 0); 
             const end = new Date(booking.checkOutDate);
+            end.setUTCHours(0, 0, 0, 0);
 
             while (loop < end) {
                 const dateStr = toDateId(loop);
@@ -156,8 +160,13 @@ const createBooking = async (req, res) => {
         if (!listing) throw new Error("Listing not found.");
 
         const freshMaxInventory = listing.inventoryCount || 1;
+        
+        // ✅ FIX: NORMALIZE TO MIDNIGHT TO PREVENT TIMEZONE BUGS
         let loop = new Date(checkInDate);
+        loop.setUTCHours(0, 0, 0, 0);
         const end = new Date(checkOutDate);
+        end.setUTCHours(0, 0, 0, 0);
+        
         let isBlockedNow = false;
         const updates = {};
         
@@ -230,7 +239,6 @@ const createBooking = async (req, res) => {
 
         // ✅ SEND NOTIFICATIONS NOW THAT DB SAVES ARE SUCCESSFUL
         try {
-            // Notify Guest
             await sendNotification({
                 userId: req.user.uid,
                 title: "Booking Confirmed! 🎉",
@@ -239,7 +247,6 @@ const createBooking = async (req, res) => {
                 relatedId: newBooking._id.toString()
             });
 
-            // Notify Host
             await sendNotification({
                 userId: req.body.hostId,
                 title: "New Booking Received! 💰",

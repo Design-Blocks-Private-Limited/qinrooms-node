@@ -16,12 +16,16 @@ const ListingSchema = new mongoose.Schema({
     amenities: [{ type: String }],
     status: { type: String, default: 'action_required' },
     
+    // ✅ NEW: Property Timings
+    checkInTime: { type: String, default: '09:00 AM' },
+    checkOutTime: { type: String, default: '08:00 AM' },
+    
     // Availability embedded directly
     minNights: { type: Number, default: 1 },
     inventoryCount: { type: Number, default: 1 },
     availability: { type: Map, of: Object, default: {} },
     
-    // ✅ NEW: Review System Fields
+    // Review System Fields
     averageRating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 }
     
