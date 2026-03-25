@@ -5,11 +5,18 @@ const Chat = require('../models/Chat');
 const { sendNotification } = require('../utils/notificationUtils');
 
 // --- HELPERS ---
-const toDateId = (date) => {
+// ✅ NEW: Explicitly add 5 hours and 30 minutes (IST) to the incoming UTC timestamp
+const getISTTime = (date) => {
     const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    d.setMinutes(d.getMinutes() + 330); // 330 minutes = 5.5 hours
+    return d;
+};
+
+// Formats the adjusted date into YYYY-MM-DD
+const toDateId = (adjustedDate) => {
+    const year = adjustedDate.getUTCFullYear();
+    const month = String(adjustedDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(adjustedDate.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
 
@@ -79,10 +86,10 @@ const cancelBooking = async (req, res) => {
         if (listing) {
             const updates = {};
             
-            // ✅ FIX: NORMALIZE TO MIDNIGHT TO PREVENT TIMEZONE BUGS
-            let loop = new Date(booking.checkInDate);
+            // ✅ FIX: SHIFT TO IST, THEN NORMALIZE TO MIDNIGHT
+            let loop = getISTTime(booking.checkInDate);
             loop.setUTCHours(0, 0, 0, 0); 
-            const end = new Date(booking.checkOutDate);
+            const end = getISTTime(booking.checkOutDate);
             end.setUTCHours(0, 0, 0, 0);
 
             while (loop < end) {
@@ -99,7 +106,9 @@ const cancelBooking = async (req, res) => {
                     bookedCount: newBookedCount,
                     bookedBy: newBookedBy
                 };
-                loop.setDate(loop.getDate() + 1);
+                
+                // Step forward 1 exact calendar day
+                loop.setUTCDate(loop.getUTCDate() + 1);
             }
             await Listing.findByIdAndUpdate(booking.listingId, { $set: updates }, { session });
         }
@@ -161,10 +170,10 @@ const createBooking = async (req, res) => {
 
         const freshMaxInventory = listing.inventoryCount || 1;
         
-        // ✅ FIX: NORMALIZE TO MIDNIGHT TO PREVENT TIMEZONE BUGS
-        let loop = new Date(checkInDate);
+        // ✅ FIX: SHIFT TO IST, THEN NORMALIZE TO MIDNIGHT
+        let loop = getISTTime(checkInDate);
         loop.setUTCHours(0, 0, 0, 0);
-        const end = new Date(checkOutDate);
+        const end = getISTTime(checkOutDate);
         end.setUTCHours(0, 0, 0, 0);
         
         let isBlockedNow = false;
@@ -202,7 +211,9 @@ const createBooking = async (req, res) => {
                 ...dayData, status: newStatus, bookedCount: newBookedCount, 
                 blockedRooms: newBlockedRooms, bookedBy: newBookedByArray 
             };
-            loop.setDate(loop.getDate() + 1);
+            
+            // Step forward 1 exact calendar day
+            loop.setUTCDate(loop.getUTCDate() + 1);
         }
 
         if (isBlockedNow) throw new Error("Dates were just booked by someone else!");
