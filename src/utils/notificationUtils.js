@@ -1,6 +1,5 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
-const axios = require('axios'); // You might need to run: npm install axios
 
 /**
  * Master Notification Function
@@ -23,27 +22,39 @@ const sendNotification = async ({ userId, title, body, type = 'system', relatedI
         
         // 3. If they have a push token, send it to Expo's servers!
         if (user && user.pushToken) {
+            console.log(`📡 Sending physical push to Expo for ${user.name || 'User'}...`);
+            console.log(`   -> Target Token: ${user.pushToken}`);
+
             const message = {
                 to: user.pushToken,
-                sound: 'default',
+                sound: 'default', // Wakes up the phone and makes the ping sound
                 title: title,
                 body: body,
-                data: { type, relatedId }, // Secret data the app can use when the user taps the notification
+                data: { type, relatedId }, // Hidden data the app can use when the user taps it
             };
 
-            await axios.post('https://exp.host/--/api/v2/push/send', message, {
+            // Ping the Official Expo Push Notification Server using native fetch
+            const response = await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
                 headers: {
-                    'Accept': 'application/json',
-                    'Accept-encoding': 'application/json',
+                    Accept: 'application/json',
+                    'Accept-encoding': 'gzip, deflate',
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify(message),
             });
-            console.log(`Push sent to ${user.name}: ${title}`);
+
+            // Read the exact receipt from Expo
+            const receipt = await response.json();
+            console.log("📨 Expo Server Response:", JSON.stringify(receipt, null, 2));
+
+        } else {
+            console.log(`🔕 User ${userId} does not have a pushToken saved. Skipping physical push.`);
         }
         
         return newNotification;
     } catch (error) {
-        console.error("Error sending notification:", error.message);
+        console.error("❌ Error in sendNotification util:", error);
     }
 };
 
