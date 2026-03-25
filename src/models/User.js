@@ -7,11 +7,11 @@ const UserSchema = new mongoose.Schema({
     phoneNumber: { type: String },
     photoURL: { type: String, default: null },
     isHost: { type: Boolean, default: false },
-    
-    // 👇 ADD THIS LINE FOR THE MASTER ADMIN PANEL 👇
     isAdmin: { type: Boolean, default: false }, 
     
-    // ✅ ADDED THIS BLOCK FOR SAVED ADDRESSES
+    // ✅ ADD THIS LINE SO MONGOOSE ALLOWS THE TOKEN TO BE SAVED!
+    pushToken: { type: String, default: null },
+    
     addresses: [{
         label: String, // e.g., "Home", "Work"
         address: String, // e.g., "123 Main St, Visakhapatnam"
@@ -21,4 +21,4 @@ const UserSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.models.User || mongoose.model('User', UserSchema);
