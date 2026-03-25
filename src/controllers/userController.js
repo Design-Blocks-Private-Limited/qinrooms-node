@@ -58,10 +58,21 @@ const registerUser = async (req, res) => {
 // --- 4. SAVE EXPO PUSH TOKEN ---
 const savePushToken = async (req, res) => {
     try {
-        const { pushToken } = req.body;
-        await User.findByIdAndUpdate(req.user.uid, { pushToken });
-        res.status(200).json({ message: "Push token saved" });
+        // ✅ FIX: Match the 'token' key sent by the React Native frontend
+        const { token } = req.body; 
+        
+        if (!token) return res.status(400).json({ error: "Token is required" });
+
+        // ✅ FIX: Save it to the 'pushToken' field in MongoDB
+        await User.findByIdAndUpdate(
+            req.user.uid, 
+            { $set: { pushToken: token } },
+            { new: true }
+        );
+        
+        res.status(200).json({ message: "Push token saved successfully!" });
     } catch (error) {
+        console.error("Save token error:", error);
         res.status(500).json({ error: "Failed to save push token" });
     }
 };
