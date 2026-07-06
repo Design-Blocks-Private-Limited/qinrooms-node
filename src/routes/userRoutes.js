@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middlewares/authMiddleware');
-const { getMyProfile, updateMyProfile, registerUser, savePushToken } = require('../controllers/userController');
+const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser } = require('../controllers/userController');
 const User = require('../models/User'); 
+
+router.post('/signup', signupUser);
+router.post('/login', loginUser);
 
 router.get('/me', requireAuth, getMyProfile);
 router.patch('/me', requireAuth, updateMyProfile);

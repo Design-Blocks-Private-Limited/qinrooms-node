@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
-    _id: { type: String, required: true }, // We use the Firebase UID as the MongoDB _id
     name: { type: String, required: true },
-    email: { type: String, required: true },
-    phoneNumber: { type: String },
+    email: { type: String }, 
+    phoneNumber: { type: String, required: true, unique: true, index: true },
+    password: { type: String, required: true },
     photoURL: { type: String, default: null },
     isHost: { type: Boolean, default: false },
     isAdmin: { type: Boolean, default: false }, 

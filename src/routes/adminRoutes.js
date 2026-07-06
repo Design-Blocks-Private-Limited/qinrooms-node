@@ -7,9 +7,7 @@ const SupportTicket = require('../models/SupportTicket');
 
 const { getPricing, updatePricing } = require('../controllers/pricingController');
 
-
-// ✅ 1. IMPORT FIREBASE ADMIN SDK (Required to delete the auth account)
-const admin = require('../config/firebase'); 
+const bcrypt = require('bcryptjs');
 
 // Require BOTH middlewares to ensure they are logged in AND are an admin
 const { requireAuth, requireAdmin } = require('../middlewares/authMiddleware'); 
@@ -87,7 +85,7 @@ router.patch('/users/:id', async (req, res) => {
     }
 });
 
-// ✅ 5. DELETE USER (Wipe from Firebase, MongoDB, AND Delete their Listings)
+// ✅ 5. DELETE USER (Wipe from MongoDB, AND Delete their Listings)
 router.delete('/users/:id', async (req, res) => {
     try {
         const userId = req.params.id;
@@ -97,23 +95,11 @@ router.delete('/users/:id', async (req, res) => {
             return res.status(403).json({ error: "Action Denied: You cannot delete your own Master Admin account." });
         }
 
-        // Step 1: Delete from Firebase Authentication
-        try {
-            await admin.auth().deleteUser(userId);
-            console.log(`Successfully deleted user ${userId} from Firebase Auth`);
-        } catch (firebaseError) {
-            if (firebaseError.code === 'auth/user-not-found') {
-                console.log(`User ${userId} not found in Firebase Auth, proceeding to DB cleanup.`);
-            } else {
-                throw firebaseError; 
-            }
-        }
-
-        // Step 2: Delete all Listings hosted by this user (Cascading Delete)
+        // Step 1: Delete all Listings hosted by this user (Cascading Delete)
         const deletedListings = await Listing.deleteMany({ hostId: userId });
         console.log(`Deleted ${deletedListings.deletedCount} listings belonging to user ${userId}`);
 
-        // Step 3: Delete the User from MongoDB
+        // Step 2: Delete the User from MongoDB
         const deletedUser = await User.findByIdAndDelete(userId);
         
         if (!deletedUser) {
@@ -139,21 +125,23 @@ router.post('/create-admin', async (req, res) => {
             return res.status(400).json({ error: 'Name, email, and password are required.' });
         }
 
-        // 1. Create the user securely in Firebase Authentication
-        const firebaseUser = await admin.auth().createUser({
-            email: email,
-            password: password,
-            displayName: name,
-        });
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ error: 'A user with this email already exists.' });
+        }
 
-        // 2. Save the user in MongoDB using the Firebase UID, flagging them as an Admin
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Save the user in MongoDB flagging them as an Admin
         const newAdmin = new User({
-            _id: firebaseUser.uid,
             name: name,
             email: email,
+            password: hashedPassword,
             isAdmin: true,
             isHost: false, 
-            phoneNumber: '' 
+            phoneNumber: `admin-${email}` // unique placeholder for admin since phone is required in schema
         });
 
         await newAdmin.save();
@@ -231,6 +219,20 @@ router.post('/support-tickets/:ticketId/message', async (req, res) => {
         if (ticket.status === 'resolved') ticket.status = 'open';
 
         await ticket.save();
+
+        // Broadcast the new message via Socket.io
+        try {
+            const io = req.app.get('io');
+            const roomName = `support_${ticket._id}`;
+            const savedMsg = ticket.messages[ticket.messages.length - 1];
+            io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
+
+            // Also broadcast to the support_admins room
+            io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
+        } catch (socketError) {
+            console.error("Failed to broadcast admin support message:", socketError);
+        }
+
         res.json(ticket);
     } catch (error) {
         res.status(500).json({ error: 'Failed to send message' });
@@ -245,6 +247,19 @@ router.patch('/support-tickets/:ticketId/resolve', async (req, res) => {
             { status: 'resolved' }, 
             { new: true }
         );
+
+        // Broadcast ticket resolution via Socket.io
+        try {
+            const io = req.app.get('io');
+            const roomName = `support_${ticket._id}`;
+            io.to(roomName).emit('support_ticket_resolved', { ticketId: ticket._id });
+
+            // Also broadcast to the support_admins room
+            io.to('support_admins').emit('support_ticket_resolved', { ticketId: ticket._id });
+        } catch (socketError) {
+            console.error("Failed to broadcast support ticket resolution:", socketError);
+        }
+
         res.json(ticket);
     } catch (error) {
         res.status(500).json({ error: 'Failed to resolve ticket' });

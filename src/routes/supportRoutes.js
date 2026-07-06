@@ -40,6 +40,25 @@ router.post('/message', requireAuth, async (req, res) => {
         });
 
         await ticket.save();
+
+        // Broadcast the new message via Socket.io
+        try {
+            const io = req.app.get('io');
+            const roomName = `support_${ticket._id}`;
+            const savedMsg = ticket.messages[ticket.messages.length - 1];
+            io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
+            
+            // Also notify the admin room in real-time
+            io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
+            
+            // If this is a newly created ticket, broadcast creation event to admins
+            if (ticket.messages.length === 1) {
+                io.to('support_admins').emit('support_ticket_created', ticket);
+            }
+        } catch (socketError) {
+            console.error("Failed to broadcast support message via socket:", socketError);
+        }
+
         res.status(201).json(ticket);
 
     } catch (error) {

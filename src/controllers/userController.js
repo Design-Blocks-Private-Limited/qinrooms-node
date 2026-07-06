@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 // --- 1. GET CURRENT USER PROFILE ---
 const getMyProfile = async (req, res) => {
@@ -77,9 +79,111 @@ const savePushToken = async (req, res) => {
     }
 };
 
+// --- 5. SIGNUP USER (CUSTOM MONGODB AUTH) ---
+const signupUser = async (req, res) => {
+    try {
+        const { name, phoneNumber, password, email, isHost, photoURL } = req.body;
+
+        if (!phoneNumber || !password || !name) {
+            return res.status(400).json({ error: 'Name, phone number, and password are required.' });
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ phoneNumber });
+        if (existingUser) {
+            return res.status(400).json({ error: 'A user with this phone number already exists.' });
+        }
+
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
+            name: name || "New User",
+            email: email || "",
+            phoneNumber,
+            password: hashedPassword,
+            photoURL: photoURL || null,
+            isHost: isHost || false,
+            isAdmin: req.body.isAdmin || false
+        });
+
+        await newUser.save();
+
+        // Sign JWT
+        const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET || 'secret_qin_jwt_key_2026', { expiresIn: '30d' });
+
+        res.status(201).json({
+            success: true,
+            token,
+            user: {
+                id: newUser._id,
+                name: newUser.name,
+                phoneNumber: newUser.phoneNumber,
+                email: newUser.email,
+                isHost: newUser.isHost,
+                isAdmin: newUser.isAdmin,
+                photoURL: newUser.photoURL
+            }
+        });
+    } catch (error) {
+        console.error("Signup error:", error);
+        res.status(500).json({ error: 'Failed to register user in database' });
+    }
+};
+
+// --- 6. LOGIN USER (CUSTOM MONGODB AUTH) ---
+const loginUser = async (req, res) => {
+    try {
+        const { phoneNumber, password } = req.body;
+
+        if (!phoneNumber || !password) {
+            return res.status(400).json({ error: 'Phone number/email and password are required.' });
+        }
+
+        // Find user by phoneNumber or email
+        const user = await User.findOne({
+            $or: [
+                { phoneNumber: phoneNumber },
+                { email: phoneNumber }
+            ]
+        });
+        if (!user) {
+            return res.status(401).json({ error: 'Incorrect phone number/email or password.' });
+        }
+
+        // Compare password
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Incorrect phone number or password.' });
+        }
+
+        // Sign JWT
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret_qin_jwt_key_2026', { expiresIn: '30d' });
+
+        res.status(200).json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                phoneNumber: user.phoneNumber,
+                email: user.email,
+                isHost: user.isHost,
+                isAdmin: user.isAdmin,
+                photoURL: user.photoURL
+            }
+        });
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ error: 'Server error during login' });
+    }
+};
+
 module.exports = { 
     getMyProfile, 
     updateMyProfile, 
     registerUser,
-    savePushToken
+    savePushToken,
+    signupUser,
+    loginUser
 };
