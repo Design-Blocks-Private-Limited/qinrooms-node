@@ -1,10 +1,8 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
 const { sendNotification } = require('./notificationUtils');
-
-// We have to grab the models directly from mongoose to avoid strict schema limits here
-const Booking = mongoose.models.Booking;
-const Listing = mongoose.models.Listing;
+const Booking = require('../models/Booking');
+const Listing = require('../models/Listing');
 
 const startCronJobs = () => {
     console.log("⏰ Notification Cron Jobs Started...");
@@ -32,7 +30,7 @@ const startCronJobs = () => {
                 // To prevent spamming, we'd ideally add a 'reminderSent' boolean to the booking model.
                 // For now, we will just send it if it's within the right time frame.
                 await sendNotification({
-                    userId: booking.userId,
+                    userId: booking.bookerId,
                     title: "Pack your bags! 🧳",
                     body: "Your trip check-in is less than 24 hours away.",
                     type: "reminder",
@@ -48,7 +46,7 @@ const startCronJobs = () => {
 
             for (const booking of overdueBookings) {
                 await sendNotification({
-                    userId: booking.userId,
+                    userId: booking.bookerId,
                     title: "Checkout Overdue ⏰",
                     body: "Your checkout time has passed. Please contact the host or check out immediately.",
                     type: "reminder",
