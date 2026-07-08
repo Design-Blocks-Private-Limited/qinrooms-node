@@ -151,6 +151,10 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ error: 'Incorrect phone number/email or password.' });
         }
 
+        if (!user.password) {
+            return res.status(401).json({ error: 'Incorrect phone number or password.' });
+        }
+
         // Compare password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {

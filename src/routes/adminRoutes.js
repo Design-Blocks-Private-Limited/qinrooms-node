@@ -19,7 +19,7 @@ router.use(requireAdmin);
 // 1. GET ALL USERS (Guests, Hosts, Admins)
 router.get('/users', async (req, res) => {
     try {
-        const users = await User.find().sort({ createdAt: -1 });
+        const users = await User.find().sort({ createdAt: -1 }).lean();
         res.json(users);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch users' });
@@ -100,7 +100,11 @@ router.delete('/users/:id', async (req, res) => {
         console.log(`Deleted ${deletedListings.deletedCount} listings belonging to user ${userId}`);
 
         // Step 2: Delete the User from MongoDB
-        const deletedUser = await User.findByIdAndDelete(userId);
+        let queryUserId = userId;
+        if (require('mongoose').Types.ObjectId.isValid(queryUserId) && typeof queryUserId === 'string' && queryUserId.length === 24) {
+            queryUserId = new (require('mongoose').Types.ObjectId)(queryUserId);
+        }
+        const deletedUser = await require('mongoose').connection.collection('users').findOneAndDelete({ _id: queryUserId });
         
         if (!deletedUser) {
             return res.status(404).json({ error: 'User not found in MongoDB' });
