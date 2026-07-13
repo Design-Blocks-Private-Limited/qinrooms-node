@@ -10,6 +10,11 @@ router.post('/login', loginUser);
 router.get('/me', requireAuth, getMyProfile);
 router.patch('/me', requireAuth, updateMyProfile);
 router.post('/register', requireAuth, registerUser);
+router.post('/delete-request', requireAuth, (req, res) => {
+    // In a real application, you'd save this request to a database and notify an admin
+    console.log(`Delete account request from user ${req.user.uid}:`, req.body);
+    res.status(200).json({ success: true, message: "Request received" });
+});
 
 // ✅ SAVE PUSH TOKEN ROUTE
 router.post('/push-token', requireAuth, savePushToken);

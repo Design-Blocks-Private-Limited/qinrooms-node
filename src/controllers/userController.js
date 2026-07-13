@@ -17,10 +17,18 @@ const getMyProfile = async (req, res) => {
 // --- 2. UPDATE CURRENT USER PROFILE ---
 const updateMyProfile = async (req, res) => {
     try {
+        if (req.body.phoneNumber) {
+            const cleanPhone = req.body.phoneNumber.replace(/[^0-9]/g, '');
+            if (cleanPhone.length !== 10) {
+                return res.status(400).json({ error: 'Phone number must be exactly 10 digits.' });
+            }
+            req.body.phoneNumber = cleanPhone; // Ensure only numbers are saved
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
             req.user.uid, 
             { $set: req.body }, 
-            { new: true }
+            { new: true, returnDocument: 'after' } // fixed mongoose deprecation warning while we are here
         );
         if (!updatedUser) return res.status(404).json({ error: 'User not found' });
         res.json(updatedUser);
