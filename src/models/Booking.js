@@ -17,7 +17,11 @@ const BookingSchema = new mongoose.Schema({
     bookerEmail: { type: String }, // Good practice to include
 
     // Booking Details
-    status: { type: String, default: 'upcoming' }, // 'upcoming', 'active', 'completed', 'cancelled'
+    status: { type: String, default: 'upcoming' }, // 'upcoming', 'active', 'completed', 'cancelled', 'pending_refund', 'refunded'
+    razorpay_order_id: { type: String },
+    razorpay_payment_id: { type: String },
+    razorpay_refund_id: { type: String },
+    
     checkInDate: { type: Date, required: true },
     checkOutDate: { type: Date, required: true },
     totalPrice: { type: Number, required: true },

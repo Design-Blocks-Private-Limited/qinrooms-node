@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Listing = require('../models/Listing');
 const Chat = require('../models/Chat');
+const User = require('../models/User');
 const { sendNotification } = require('../utils/notificationUtils');
 
 // --- HELPERS ---
@@ -77,8 +78,8 @@ const cancelBooking = async (req, res) => {
         if (!booking) throw new Error("Booking not found");
         if (booking.bookerId !== req.user.uid) throw new Error("Unauthorized");
 
-        // 1. Update Booking Status
-        booking.status = 'cancelled';
+        // 1. Update Booking Status (to pending_refund for admin to approve)
+        booking.status = 'pending_refund';
         await booking.save({ session });
 
         // 2. Clean up Listing Availability
@@ -276,11 +277,64 @@ const createBooking = async (req, res) => {
     }
 };
 
+const searchGuest = async (req, res) => {
+    try {
+        const { phone, email } = req.query;
+        if (!phone && !email) {
+            return res.status(400).json({ error: "Provide a phone number or email to search." });
+        }
+
+        // 1. Search registered users first
+        let query = {};
+        if (phone) query.phoneNumber = phone;
+        else if (email) query.email = email;
+
+        const user = await User.findOne(query);
+        if (user) {
+            return res.json({
+                bookerName: user.name,
+                bookerEmail: user.email,
+                bookerPhone: user.phoneNumber,
+                found: true,
+                type: 'registered'
+            });
+        }
+
+        // 2. Search past bookings of this host
+        const bookingQuery = { hostId: req.user.uid };
+        if (phone) {
+            bookingQuery.bookerPhone = phone;
+        } else if (email) {
+            bookingQuery.bookerEmail = email;
+        }
+
+        const latestBooking = await Booking.findOne(bookingQuery).sort({ createdAt: -1 });
+        if (latestBooking) {
+            return res.json({
+                bookerName: latestBooking.bookerName,
+                bookerEmail: latestBooking.bookerEmail,
+                bookerPhone: latestBooking.bookerPhone || phone,
+                guestIdType: latestBooking.guestIdType || '',
+                guestIdNumber: latestBooking.guestIdNumber || '',
+                guestIdImage: latestBooking.guestIdImage || '',
+                found: true,
+                type: 'walk-in'
+            });
+        }
+
+        res.json({ found: false });
+    } catch (error) {
+        console.error("Search guest error:", error);
+        res.status(500).json({ error: "Failed to search guest details" });
+    }
+};
+
 module.exports = {
     getHostReservations,
     getMyTrips,
     getBookingById,
     cancelBooking,
     updateBooking,
-    createBooking
+    createBooking,
+    searchGuest
 };

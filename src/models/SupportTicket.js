@@ -9,6 +9,8 @@ const messageSchema = new mongoose.Schema({
 const supportTicketSchema = new mongoose.Schema({
     userId: { type: String, required: true },
     userName: { type: String, required: true },
+    userEmail: { type: String },
+    userPhone: { type: String },
     status: { type: String, enum: ['open', 'resolved'], default: 'open' },
     messages: [messageSchema] // ✅ Now it holds a chat history
 }, { timestamps: true });

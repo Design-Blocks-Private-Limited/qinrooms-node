@@ -37,8 +37,12 @@ router.get('/', async (req, res) => {
 // GET all listings for the logged-in Host
 router.get('/my-host-listings', requireAuth, async (req, res) => {
     try {
-        // Fetch all listings where the hostId matches the authenticated user
-        const listings = await Listing.find({ hostId: req.user.uid }).sort({ createdAt: -1 });
+        const query = { hostId: req.user.uid };
+        if (req.query.type) {
+            query.type = req.query.type;
+        }
+        console.log(`[my-host-listings] req.query.type: "${req.query.type}", constructed query:`, JSON.stringify(query));
+        const listings = await Listing.find(query).sort({ createdAt: -1 });
         const formattedListings = listings.map(l => ({ id: l._id, ...l._doc }));
         res.json(formattedListings);
     } catch (error) {

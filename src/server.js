@@ -32,6 +32,8 @@ const reviewRoutes = require("./routes/reviewRoutes");
 
 const supportRoutes = require("./routes/supportRoutes"); // ✅ IMPORT SUPPORT ROUTE
 
+const paymentRoutes = require("./routes/paymentRoutes");
+
 const app = express();
 
 // ✅ CREATE HTTP SERVER & SOCKET.IO INSTANCE
@@ -91,6 +93,7 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/reviews", reviewRoutes);
 
 app.use("/api/support", supportRoutes); // ✅ MOUNT SUPPORT ROUTE HERE
+app.use("/api/payment", paymentRoutes);
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 // ✅ MOUNT ADMIN ROUTES (Protected by middleware)

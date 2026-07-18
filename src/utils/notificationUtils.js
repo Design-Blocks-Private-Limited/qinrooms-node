@@ -18,7 +18,7 @@ const sendNotification = async ({ userId, title, body, type = 'system', relatedI
         await newNotification.save();
 
         // 2. Fetch the user's Expo Push Token from the database
-        const user = await User.findById(userId);
+        const user = await User.findOne({ uid: userId });
         
         // 3. If they have a push token, send it to Expo's servers!
         if (user && user.pushToken) {

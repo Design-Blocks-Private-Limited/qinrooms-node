@@ -7,11 +7,15 @@ const {
     getBookingById,
     cancelBooking,
     updateBooking,
-    createBooking
+    createBooking,
+    searchGuest
 } = require('../controllers/bookingController');
 
 // 1. GET: Fetch Active and Upcoming Reservations for the Host
 router.get('/host/today', requireAuth, getHostReservations);
+
+// Search Guest details
+router.get('/search-guest', requireAuth, searchGuest);
 
 // 2. GET: Fetch Trips for the logged-in Guest
 router.get('/my-trips', requireAuth, getMyTrips);

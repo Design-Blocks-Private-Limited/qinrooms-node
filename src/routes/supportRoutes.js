@@ -29,6 +29,8 @@ router.post('/message', requireAuth, async (req, res) => {
             ticket = new SupportTicket({
                 userId: req.user.uid,
                 userName: userName || req.user.name || "Guest User",
+                userEmail: req.user.email || req.body.userEmail || "",
+                userPhone: req.user.phoneNumber || req.body.userPhone || "",
                 messages: []
             });
         }

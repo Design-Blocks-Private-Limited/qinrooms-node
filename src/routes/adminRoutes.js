@@ -62,6 +62,38 @@ router.get('/bookings', async (req, res) => {
     }
 });
 
+// ✅ 3.5 PROCESS REFUND
+const { processRefund } = require('../controllers/paymentController');
+
+router.post('/bookings/:id/refund', async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ error: 'Booking not found' });
+        
+        if (booking.status !== 'pending_refund') {
+            return res.status(400).json({ error: 'Booking is not pending a refund' });
+        }
+        
+        if (!booking.razorpay_payment_id) {
+            return res.status(400).json({ error: 'No Razorpay payment ID found for this booking' });
+        }
+        
+        // Process refund via Razorpay (using total price for now)
+        // Subtract platform fee if applicable in future
+        const refundResponse = await processRefund(booking.razorpay_payment_id, booking.totalPrice);
+        
+        // Update booking status
+        booking.status = 'refunded';
+        booking.razorpay_refund_id = refundResponse.id;
+        await booking.save();
+        
+        res.json({ success: true, message: 'Refund processed successfully', booking });
+    } catch (error) {
+        console.error("Admin Refund Error:", error);
+        res.status(500).json({ error: error.description || 'Failed to process refund with Razorpay' });
+    }
+});
+
 // ✅ 4. UPDATE USER (Edit Name & Phone)
 router.patch('/users/:id', async (req, res) => {
     try {
@@ -198,9 +230,25 @@ router.put('/pricing', updatePricing);
 
 router.get('/support-tickets', async (req, res) => {
     try {
-        const tickets = await SupportTicket.find().sort({ updatedAt: -1 });
+        const tickets = await SupportTicket.find().sort({ updatedAt: -1 }).lean(); // Use lean() to allow modification
+        
+        // Populate missing emails and phones for legacy tickets
+        for (let ticket of tickets) {
+            if (!ticket.userEmail || !ticket.userPhone) {
+                try {
+                    const user = await User.findById(ticket.userId);
+                    if (user) {
+                        ticket.userEmail = ticket.userEmail || user.email;
+                        ticket.userPhone = ticket.userPhone || user.phoneNumber;
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch user for ticket", ticket._id, err);
+                }
+            }
+        }
         res.json(tickets);
     } catch (error) {
+        console.error("Failed to fetch tickets:", error);
         res.status(500).json({ error: 'Failed to fetch tickets' });
     }
 });

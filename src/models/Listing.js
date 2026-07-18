@@ -6,7 +6,7 @@ const ListingSchema = new mongoose.Schema({
     hostImage: { type: String },
     title: { type: String, required: true },
     description: { type: String },
-    type: { type: String, enum: ['house', 'apartment', 'barn', 'hotel', 'dorm'] },
+    type: { type: String, enum: ['house', 'apartment', 'barn', 'hotel', 'dorm', 'pg'] },
     privacy: { type: String },
     price: { type: Number, required: true },
     location: { type: String },
@@ -28,9 +28,19 @@ const ListingSchema = new mongoose.Schema({
     minNights: { type: Number, default: 1 },
     inventoryCount: { type: Number, default: 1 },
     availability: { type: Map, of: Object, default: {} },
+    rooms: [{
+        name: { type: String },
+        guests: { type: Number },
+        beds: { type: Number },
+        bathrooms: { type: Number },
+        kitchen: { type: Number, default: 0 },
+        price: { type: Number }
+    }],
     
     averageRating: { type: Number, default: 0 },
-    reviewCount: { type: Number, default: 0 }
+    reviewCount: { type: Number, default: 0 },
+    reviewsCount: { type: Number, default: 0 },
+    city: { type: String }
     
 }, { timestamps: true });
 
