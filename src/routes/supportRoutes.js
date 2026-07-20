@@ -6,7 +6,7 @@ const { requireAuth } = require('../middlewares/authMiddleware');
 // 1. GET ACTIVE CHAT HISTORY (For Mobile App)
 router.get('/', requireAuth, async (req, res) => {
     try {
-        const ticket = await SupportTicket.findOne({ userId: req.user.uid, status: 'open' });
+        const ticket = await SupportTicket.findOne({ userId: req.user.uid }).sort({ createdAt: -1 });
         res.json(ticket || { messages: [] });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch support chat.' });
@@ -22,7 +22,8 @@ router.post('/message', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Message cannot be empty.' });
         }
 
-        let ticket = await SupportTicket.findOne({ userId: req.user.uid, status: 'open' });
+        let ticket = await SupportTicket.findOne({ userId: req.user.uid }).sort({ createdAt: -1 });
+        let isReopened = false;
 
         // If the user doesn't have an open ticket, create a new chat session
         if (!ticket) {
@@ -33,6 +34,9 @@ router.post('/message', requireAuth, async (req, res) => {
                 userPhone: req.user.phoneNumber || req.body.userPhone || "",
                 messages: []
             });
+        } else if (ticket.status === 'resolved') {
+            ticket.status = 'open';
+            isReopened = true;
         }
 
         // Push the new message to the chat
@@ -53,8 +57,8 @@ router.post('/message', requireAuth, async (req, res) => {
             // Also notify the admin room in real-time
             io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
             
-            // If this is a newly created ticket, broadcast creation event to admins
-            if (ticket.messages.length === 1) {
+            // If this is a newly created ticket, or just reopened, broadcast creation event to admins
+            if (ticket.messages.length === 1 || isReopened) {
                 io.to('support_admins').emit('support_ticket_created', ticket);
             }
         } catch (socketError) {

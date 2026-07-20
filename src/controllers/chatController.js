@@ -74,7 +74,7 @@ const sendMessage = async (req, res) => {
         if (!lastMsgText) lastMsgText = message.image ? "📷 Image" : "📍 Location";
 
         const updatedChat = await Chat.findOneAndUpdate(
-            { chatId: chatId }, 
+            { _id: chatId }, 
             {
                 lastMessage: lastMsgText,
                 lastUpdated: new Date()
