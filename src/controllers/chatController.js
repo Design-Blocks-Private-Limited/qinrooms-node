@@ -74,10 +74,12 @@ const sendMessage = async (req, res) => {
         if (!lastMsgText) lastMsgText = message.image ? "📷 Image" : "📍 Location";
 
         const updatedChat = await Chat.findOneAndUpdate(
-            { _id: chatId }, 
+            { chatId: chatId }, 
             {
-                lastMessage: lastMsgText,
-                lastUpdated: new Date()
+                $set: {
+                    lastMessage: lastMsgText,
+                    lastUpdated: new Date()
+                }
             },
             { new: true } // Return updated doc to get participants
         );
