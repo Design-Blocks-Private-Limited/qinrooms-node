@@ -85,8 +85,16 @@ const sendMessage = async (req, res) => {
         );
 
         // 3. Broadcast to the Socket Room instantly
-        const io = req.app.get('io');
-        io.to(chatId).emit('receive_message', newMessage);
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.to(chatId).emit('receive_message', newMessage);
+            } else {
+                console.warn(`[chatController] Socket.io instance not found on req.app, message sent but not broadcasted via socket`);
+            }
+        } catch (socketError) {
+            console.error("Socket emit error:", socketError);
+        }
 
         // ✅ 4. SEND PUSH NOTIFICATION
         try {
@@ -114,8 +122,8 @@ const sendMessage = async (req, res) => {
 
         res.status(201).json(newMessage);
     } catch (error) {
-        console.error("Save message error:", error);
-        res.status(500).json({ error: 'Failed to send message' });
+        console.error("Save message error details:", error.message, error.stack);
+        res.status(500).json({ error: 'Failed to send message', details: error.message });
     }
 };
 
