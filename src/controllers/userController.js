@@ -54,7 +54,8 @@ const registerUser = async (req, res) => {
             phoneNumber: phoneNumber || "", 
             email: email,
             photoURL: photoURL || null,     
-            isHost: isHost || false
+            isHost: isHost || false,
+            verificationStatus: 'unverified'
         });
 
         await newUser.save();
@@ -130,7 +131,8 @@ const signupUser = async (req, res) => {
                 email: newUser.email,
                 isHost: newUser.isHost,
                 isAdmin: newUser.isAdmin,
-                photoURL: newUser.photoURL
+                photoURL: newUser.photoURL,
+                verificationStatus: newUser.verificationStatus
             }
         });
     } catch (error) {
@@ -182,12 +184,32 @@ const loginUser = async (req, res) => {
                 email: user.email,
                 isHost: user.isHost,
                 isAdmin: user.isAdmin,
-                photoURL: user.photoURL
+                photoURL: user.photoURL,
+                verificationStatus: user.verificationStatus
             }
         });
     } catch (error) {
         console.error("Login error:", error);
         res.status(500).json({ error: 'Server error during login' });
+    }
+};
+
+// --- 7. SUBMIT HOST VERIFICATION ---
+const submitVerification = async (req, res) => {
+    try {
+        const { idDocumentUrl } = req.body;
+        if (!idDocumentUrl) return res.status(400).json({ error: 'ID document URL is required.' });
+
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user.uid,
+            { $set: { idDocumentUrl, verificationStatus: 'pending' } },
+            { new: true }
+        );
+
+        res.status(200).json(updatedUser);
+    } catch (error) {
+        console.error("Submit verification error:", error);
+        res.status(500).json({ error: 'Failed to submit verification' });
     }
 };
 
@@ -197,5 +219,6 @@ module.exports = {
     registerUser,
     savePushToken,
     signupUser,
-    loginUser
+    loginUser,
+    submitVerification
 };

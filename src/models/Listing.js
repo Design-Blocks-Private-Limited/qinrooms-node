@@ -14,7 +14,7 @@ const ListingSchema = new mongoose.Schema({
     longitude: { type: Number },
     images: [{ type: String }],
     amenities: [{ type: String }],
-    status: { type: String, default: 'action_required' },
+    status: { type: String, default: 'unlisted' },
     
     // ✅ NEW: Explicitly define these so MongoDB saves them!
     guests: { type: Number, default: 4 },

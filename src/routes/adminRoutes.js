@@ -94,6 +94,28 @@ router.post('/bookings/:id/refund', async (req, res) => {
     }
 });
 
+// ✅ 3.6 APPROVE/REJECT HOST VERIFICATION
+router.post('/users/:id/verify', async (req, res) => {
+    try {
+        const { status } = req.body; // 'verified' or 'rejected'
+        if (!['verified', 'rejected'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+        
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { $set: { verificationStatus: status } },
+            { new: true }
+        );
+
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error("Admin Verify Error:", error);
+        res.status(500).json({ error: 'Failed to verify host' });
+    }
+});
+
 // ✅ 4. UPDATE USER (Edit Name & Phone)
 router.patch('/users/:id', async (req, res) => {
     try {

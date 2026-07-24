@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middlewares/authMiddleware');
-const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser } = require('../controllers/userController');
+const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser, submitVerification } = require('../controllers/userController');
 const User = require('../models/User'); 
 
 router.post('/signup', signupUser);
@@ -9,6 +9,7 @@ router.post('/login', loginUser);
 
 router.get('/me', requireAuth, getMyProfile);
 router.patch('/me', requireAuth, updateMyProfile);
+router.post('/me/verify', requireAuth, submitVerification);
 router.post('/register', requireAuth, registerUser);
 router.post('/delete-request', requireAuth, (req, res) => {
     // In a real application, you'd save this request to a database and notify an admin

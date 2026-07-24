@@ -11,6 +11,10 @@ const UserSchema = new mongoose.Schema({
     
     // ✅ ADD THIS LINE SO MONGOOSE ALLOWS THE TOKEN TO BE SAVED!
     pushToken: { type: String, default: null },
+
+    // ✅ Host Verification
+    verificationStatus: { type: String, enum: ['unverified', 'pending', 'verified', 'rejected'], default: 'unverified' },
+    idDocumentUrl: { type: String, default: null },
     
     addresses: [{
         label: String, // e.g., "Home", "Work"

@@ -9,7 +9,15 @@ const { getPricing } = require('../controllers/pricingController');
 router.get('/', async (req, res) => {
     try {
         const { type } = req.query;
-        const filter = { status: 'active' };
+        
+        // Find all verified hosts
+        const verifiedUsers = await User.find({ verificationStatus: 'verified' }, '_id');
+        const verifiedUserIds = verifiedUsers.map(u => u._id.toString());
+
+        const filter = { 
+            status: 'active',
+            hostId: { $in: verifiedUserIds }
+        };
         
         // ✅ UPDATED: Split the comma-separated string into an array for MongoDB
         if (type) {
