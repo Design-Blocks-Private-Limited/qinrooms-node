@@ -16,6 +16,9 @@ const UserSchema = new mongoose.Schema({
     verificationStatus: { type: String, enum: ['unverified', 'pending', 'verified', 'rejected'], default: 'unverified' },
     idDocumentUrl: { type: String, default: null },
     
+    // ✅ Account Deletion Request
+    deleteRequested: { type: Boolean, default: false },
+    
     addresses: [{
         label: String, // e.g., "Home", "Work"
         address: String, // e.g., "123 Main St, Visakhapatnam"

@@ -252,23 +252,38 @@ router.put('/pricing', updatePricing);
 
 router.get('/support-tickets', async (req, res) => {
     try {
-        const tickets = await SupportTicket.find().sort({ updatedAt: -1 }).lean(); // Use lean() to allow modification
+        const tickets = await SupportTicket.find().sort({ updatedAt: -1 }).lean(); 
         
-        // Populate missing emails and phones for legacy tickets
+        const userTicketsMap = {};
+
+        // Populate latest user info and group tickets by userId
         for (let ticket of tickets) {
-            if (!ticket.userEmail || !ticket.userPhone) {
-                try {
-                    const user = await User.findById(ticket.userId);
-                    if (user) {
-                        ticket.userEmail = ticket.userEmail || user.email;
-                        ticket.userPhone = ticket.userPhone || user.phoneNumber;
-                    }
-                } catch (err) {
-                    console.error("Failed to fetch user for ticket", ticket._id, err);
+            try {
+                const user = await User.findById(ticket.userId);
+                if (user) {
+                    ticket.userName = user.name || ticket.userName;
+                    ticket.userEmail = user.email || ticket.userEmail;
+                    ticket.userPhone = user.phoneNumber || ticket.userPhone;
+                    ticket.userPhoto = user.photoURL || null;
                 }
+            } catch (err) {
+                console.error("Failed to fetch user for ticket", ticket._id, err);
+            }
+
+            if (!userTicketsMap[ticket.userId]) {
+                userTicketsMap[ticket.userId] = { ...ticket, messages: [...ticket.messages] };
+            } else {
+                // Prepend older messages to the merged ticket
+                userTicketsMap[ticket.userId].messages = [
+                    ...ticket.messages,
+                    ...userTicketsMap[ticket.userId].messages
+                ];
+                // Keep the most recent status if the latest one was resolved but an older one was open (shouldn't happen, but just in case)
             }
         }
-        res.json(tickets);
+
+        const mergedTickets = Object.values(userTicketsMap).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        res.json(mergedTickets);
     } catch (error) {
         console.error("Failed to fetch tickets:", error);
         res.status(500).json({ error: 'Failed to fetch tickets' });
@@ -316,16 +331,28 @@ router.post('/support-tickets/:ticketId/message', async (req, res) => {
 // 3. MARK TICKET AS RESOLVED
 router.patch('/support-tickets/:ticketId/resolve', async (req, res) => {
     try {
-        const ticket = await SupportTicket.findByIdAndUpdate(
-            req.params.ticketId, 
-            { status: 'resolved' }, 
-            { new: true }
-        );
+        const ticket = await SupportTicket.findById(req.params.ticketId);
+        if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+        // Add automated system message before resolving
+        ticket.messages.push({
+            sender: 'system',
+            text: 'Hope you have a better experience with the chat! Please rate your support experience.'
+        });
+
+        ticket.status = 'resolved';
+        await ticket.save();
 
         // Broadcast ticket resolution via Socket.io
         try {
             const io = req.app.get('io');
             const roomName = `support_${ticket._id}`;
+            
+            // Broadcast the new system message first
+            const sysMsg = ticket.messages[ticket.messages.length - 1];
+            io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: sysMsg });
+            io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: sysMsg });
+
             io.to(roomName).emit('support_ticket_resolved', { ticketId: ticket._id });
 
             // Also broadcast to the support_admins room

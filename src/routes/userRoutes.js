@@ -11,10 +11,15 @@ router.get('/me', requireAuth, getMyProfile);
 router.patch('/me', requireAuth, updateMyProfile);
 router.post('/me/verify', requireAuth, submitVerification);
 router.post('/register', requireAuth, registerUser);
-router.post('/delete-request', requireAuth, (req, res) => {
-    // In a real application, you'd save this request to a database and notify an admin
-    console.log(`Delete account request from user ${req.user.uid}:`, req.body);
-    res.status(200).json({ success: true, message: "Request received" });
+router.post('/delete-request', requireAuth, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user.uid, { $set: { deleteRequested: true } });
+        console.log(`Delete account request from user ${req.user.uid}`);
+        res.status(200).json({ success: true, message: "Deletion request received and pending admin approval." });
+    } catch (error) {
+        console.error("Delete request error:", error);
+        res.status(500).json({ error: "Failed to process delete request." });
+    }
 });
 
 // ✅ SAVE PUSH TOKEN ROUTE
