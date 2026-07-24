@@ -1,6 +1,7 @@
 const Review = require('../models/Review');
 const Listing = require('../models/Listing');
 const { sendNotification } = require('../utils/notificationUtils');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
 // 🛠️ HELPER FUNCTION: Recalculate listing rating when reviews change
 const updateListingRating = async (listingId) => {
@@ -22,9 +23,16 @@ const updateListingRating = async (listingId) => {
 // 1. GET ALL REVIEWS FOR A SPECIFIC LISTING
 const getReviewsByListing = async (req, res) => {
     try {
-        const reviews = await Review.find({ listingId: req.params.listingId })
-                                    .sort({ createdAt: -1 }); // Newest first
-        res.json(reviews);
+        const { page, limit, skip } = getPaginationParams(req.query);
+        const filter = { listingId: req.params.listingId };
+
+        const total = await Review.countDocuments(filter);
+        const reviews = await Review.find(filter)
+                                    .sort({ createdAt: -1 }) // Newest first
+                                    .skip(skip)
+                                    .limit(limit);
+
+        res.json(formatPaginatedResponse(reviews, total, page, limit));
     } catch (error) {
         console.error("Error fetching reviews:", error);
         res.status(500).json({ error: 'Server error fetching reviews' });

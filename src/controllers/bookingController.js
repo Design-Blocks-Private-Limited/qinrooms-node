@@ -4,6 +4,7 @@ const Listing = require('../models/Listing');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const { sendNotification } = require('../utils/notificationUtils');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
 // --- HELPERS ---
 // ✅ NEW: Explicitly add 5 hours and 30 minutes (IST) to the incoming UTC timestamp
@@ -24,13 +25,20 @@ const toDateId = (adjustedDate) => {
 // 1. FETCH ACTIVE AND UPCOMING RESERVATIONS FOR THE HOST
 const getHostReservations = async (req, res) => {
     try {
-        const bookings = await Booking.find({
+        const { page, limit, skip } = getPaginationParams(req.query);
+        const filter = {
             hostId: req.user.uid,
             status: { $in: ['upcoming', 'active'] }
-        }).sort({ checkInDate: 1 });
+        };
+
+        const total = await Booking.countDocuments(filter);
+        const bookings = await Booking.find(filter)
+            .sort({ checkInDate: 1 })
+            .skip(skip)
+            .limit(limit);
 
         const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
-        res.json(formatted);
+        res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Failed to fetch reservations:", error);
         res.status(500).json({ error: 'Failed to fetch reservations' });
@@ -40,11 +48,17 @@ const getHostReservations = async (req, res) => {
 // 2. FETCH TRIPS FOR THE LOGGED-IN GUEST
 const getMyTrips = async (req, res) => {
     try {
-        const bookings = await Booking.find({ bookerId: req.user.uid })
-            .sort({ checkInDate: 1 });
+        const { page, limit, skip } = getPaginationParams(req.query);
+        const filter = { bookerId: req.user.uid };
+
+        const total = await Booking.countDocuments(filter);
+        const bookings = await Booking.find(filter)
+            .sort({ checkInDate: 1 })
+            .skip(skip)
+            .limit(limit);
 
         const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
-        res.json(formatted);
+        res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Failed to fetch trips:", error);
         res.status(500).json({ error: 'Failed to fetch trips' });

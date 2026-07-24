@@ -2,6 +2,7 @@ const Chat = require('../models/Chat');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { sendNotification } = require('../utils/notificationUtils');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
 // 1. CREATE OR MERGE A CHAT DOCUMENT (Triggered when booking/messaging starts)
 const createOrUpdateChat = async (req, res) => {
@@ -34,10 +35,16 @@ const getUserChats = async (req, res) => {
             filter.guestId = req.user.uid;
         }
 
-        const chats = await Chat.find(filter).sort({ lastUpdated: -1 });
+        const { page, limit, skip } = getPaginationParams(req.query);
+
+        const total = await Chat.countDocuments(filter);
+        const chats = await Chat.find(filter)
+            .sort({ lastUpdated: -1 })
+            .skip(skip)
+            .limit(limit);
         
         const formatted = chats.map(c => ({ id: c._id, ...c._doc }));
-        res.json(formatted);
+        res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Inbox fetch error:", error);
         res.status(500).json({ error: 'Failed to fetch inbox' });
@@ -47,9 +54,15 @@ const getUserChats = async (req, res) => {
 // 3. GET ALL MESSAGES FOR A SPECIFIC CHAT
 const getChatMessages = async (req, res) => {
     try {
-        const messages = await Message.find({ chatId: req.params.chatId })
-                                      .sort({ createdAt: -1 });
-        res.json(messages);
+        const { page, limit, skip } = getPaginationParams(req.query);
+        const filter = { chatId: req.params.chatId };
+
+        const total = await Message.countDocuments(filter);
+        const messages = await Message.find(filter)
+                                      .sort({ createdAt: -1 })
+                                      .skip(skip)
+                                      .limit(limit);
+        res.json(formatPaginatedResponse(messages, total, page, limit));
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch messages' });
     }

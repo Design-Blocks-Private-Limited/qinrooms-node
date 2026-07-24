@@ -1,4 +1,5 @@
 const Listing = require('../models/Listing');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
 // Get all active listings for the home feed
 const getActiveListings = async (req, res) => {
@@ -7,8 +8,15 @@ const getActiveListings = async (req, res) => {
         const filter = { status: 'active' };
         if (type) filter.type = type;
 
-        const listings = await Listing.find(filter).sort({ createdAt: -1 });
-        res.json(listings);
+        const { page, limit, skip } = getPaginationParams(req.query);
+
+        const total = await Listing.countDocuments(filter);
+        const listings = await Listing.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        res.json(formatPaginatedResponse(listings, total, page, limit));
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch listings' });
     }
