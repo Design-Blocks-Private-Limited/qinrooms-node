@@ -97,6 +97,13 @@ const signupUser = async (req, res) => {
             return res.status(400).json({ error: 'Name, phone number, and password are required.' });
         }
 
+        // Password Strength Validation
+        // Requires at least 8 characters, 1 letter, and 1 number
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters long and contain at least one letter and one number.' });
+        }
+
         // Check if user already exists
         const existingUser = await User.findOne({ phoneNumber });
         if (existingUser) {

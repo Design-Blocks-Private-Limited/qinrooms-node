@@ -1,11 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser, submitVerification } = require('../controllers/userController');
 const User = require('../models/User'); 
 
-router.post('/signup', signupUser);
-router.post('/login', loginUser);
+// Security: Rate limiting for auth routes (max 5 requests per 15 minutes)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 5,
+    message: { error: 'Too many login attempts. Please try again after 15 minutes.' }
+});
+
+router.post('/signup', authLimiter, signupUser);
+router.post('/login', authLimiter, loginUser);
 
 router.get('/me', requireAuth, getMyProfile);
 router.patch('/me', requireAuth, updateMyProfile);

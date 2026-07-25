@@ -19,6 +19,18 @@ const UserSchema = new mongoose.Schema({
     // ✅ Account Deletion Request
     deleteRequested: { type: Boolean, default: false },
     
+    // ✅ Wallet System
+    walletBalance: { type: Number, default: 0 },
+    
+    // ✅ Saved Bank Details
+    bankDetails: {
+        bankName: { type: String, default: null },
+        accountName: { type: String, default: null },
+        accountNumber: { type: String, default: null },
+        ifsc: { type: String, default: null },
+        bankDocumentUrl: { type: String, default: null },
+    },
+    
     addresses: [{
         label: String, // e.g., "Home", "Work"
         address: String, // e.g., "123 Main St, Visakhapatnam"

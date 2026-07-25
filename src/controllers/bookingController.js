@@ -161,14 +161,53 @@ const cancelBooking = async (req, res) => {
 // 5. UPDATE BOOKING DATA
 const updateBooking = async (req, res) => {
     try {
-        const booking = await Booking.findOneAndUpdate(
-            { _id: req.params.id, $or: [{ hostId: req.user.uid }, { bookerId: req.user.uid }] },
-            { $set: req.body },
-            { new: true }
-        );
+        const booking = await Booking.findOne({ _id: req.params.id, $or: [{ hostId: req.user.uid }, { bookerId: req.user.uid }] });
         if (!booking) return res.status(404).json({ error: 'Booking not found' });
+        
+        const wasNotCheckedIn = !booking.checkInConfirmed;
+        const isCheckingInNow = req.body.checkInConfirmed === true;
+        
+        // Update fields
+        Object.assign(booking, req.body);
+        
+        // ✅ If guest successfully checked in just now, credit the host's wallet!
+        if (wasNotCheckedIn && isCheckingInNow) {
+            const Transaction = require('../models/Transaction');
+            
+            // Amount is basePrice. If missing, fallback to 80% of total price
+            const amountToCredit = booking.priceBreakdown?.basePrice || (booking.totalPrice * 0.8);
+            
+            // Increment Host Wallet
+            await User.findOneAndUpdate(
+                { _id: booking.hostId }, 
+                { $inc: { walletBalance: amountToCredit } }
+            );
+            
+            // Create Transaction Record
+            await Transaction.create({
+                userId: booking.hostId,
+                amount: amountToCredit,
+                type: 'credit',
+                description: `Payment for booking at ${booking.title || 'your listing'}`,
+                bookingId: booking._id
+            });
+            
+            // Optional: send host a notification about payout
+            try {
+                await sendNotification({
+                    userId: booking.hostId,
+                    title: "Wallet Credited! 💸",
+                    body: `₹${amountToCredit.toLocaleString()} has been added to your wallet for a check-in.`,
+                    type: "wallet",
+                    relatedId: booking._id.toString()
+                });
+            } catch (e) {}
+        }
+        
+        await booking.save();
         res.json({ id: booking._id, ...booking._doc });
     } catch (error) {
+        console.error("Update booking error:", error);
         res.status(500).json({ error: 'Failed to update booking' });
     }
 };

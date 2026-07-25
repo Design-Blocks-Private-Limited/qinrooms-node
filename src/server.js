@@ -45,8 +45,8 @@ const io = new Server(server, {
 });
 
 // ✅ MAKE `io` AVAILABLE TO YOUR ROUTES
-
 app.set("io", io);
+global.io = io;
 
 // ✅ HANDLE SOCKET CONNECTIONS
 
@@ -57,8 +57,12 @@ io.on("connection", (socket) => {
 
   socket.on("join_chat", (chatId) => {
     socket.join(chatId);
-
     console.log(`👤 User joined chat room: ${chatId}`);
+  });
+
+  socket.on("join_user", (userId) => {
+    socket.join(userId);
+    console.log(`👤 User joined personal room: ${userId}`);
   });
 
   socket.on("disconnect", () => {
@@ -72,7 +76,8 @@ app.use(helmet());
 
 app.use(morgan("dev"));
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 connectDB();
 
@@ -95,6 +100,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/support", supportRoutes); // ✅ MOUNT SUPPORT ROUTE HERE
 app.use("/api/payment", paymentRoutes);
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/wallet", require("./routes/walletRoutes")); // ✅ MOUNT WALLET ROUTE
 
 // ✅ MOUNT ADMIN ROUTES (Protected by middleware)
 

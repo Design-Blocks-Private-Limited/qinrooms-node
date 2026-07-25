@@ -17,8 +17,13 @@ const sendNotification = async ({ userId, title, body, type = 'system', relatedI
         });
         await newNotification.save();
 
+        // 1.5 Emit live socket notification for instant UI updates
+        if (global.io) {
+            global.io.to(userId).emit('new_notification', newNotification);
+        }
+
         // 2. Fetch the user's Expo Push Token from the database
-        const user = await User.findOne({ uid: userId });
+        const user = await User.findById(userId);
         
         // 3. If they have a push token, send it to Expo's servers!
         if (user && user.pushToken) {

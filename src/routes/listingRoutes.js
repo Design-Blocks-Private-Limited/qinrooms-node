@@ -8,10 +8,11 @@ const { getPricing } = require('../controllers/pricingController');
 // GET /api/listings?type=House,Apartment,Barn
 router.get('/', async (req, res) => {
     try {
-        const { type } = req.query;
+        const { type, page = 1, limit = 20 } = req.query;
         
-        // Find all verified hosts
-        const verifiedUsers = await User.find({ verificationStatus: 'verified' }, '_id');
+        // Find all verified hosts and use .lean() to bypass Mongoose casting 
+        // (since Firebase UIDs are Strings but Mongoose defaults _id to ObjectId)
+        const verifiedUsers = await User.find({ verificationStatus: 'verified' }, '_id').lean();
         const verifiedUserIds = verifiedUsers.map(u => u._id.toString());
 
         const filter = { 
@@ -21,23 +22,33 @@ router.get('/', async (req, res) => {
         
         // ✅ UPDATED: Split the comma-separated string into an array for MongoDB
         if (type) {
-            const typesArray = type.split(','); // Turns 'House,Apartment' into ['House', 'Apartment']
+            // Handle cases where `type` might be parsed as an array by Express
+            const typeStr = Array.isArray(type) ? type.join(',') : type;
+            const typesArray = typeStr.split(','); 
             
-            // Make it case-insensitive just in case (House vs house)
-            const regexArray = typesArray.map(t => new RegExp(`^${t.trim()}$`, 'i'));
+            // Enum values in Mongoose are lowercase strings ('house', 'apartment', etc.)
+            // We cannot use RegExp with $in for Enums in Mongoose, it throws a CastError.
+            const lowerCaseArray = typesArray.map(t => t.trim().toLowerCase());
             
-            // Use $in to say "Find any listing where type matches ONE of these"
-            filter.type = { $in: regexArray };
+            filter.type = { $in: lowerCaseArray };
         }
 
-        // Fetch listings, sort by newest
-        const listings = await Listing.find(filter).sort({ createdAt: -1 });
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        // Fetch listings, sort by newest, apply pagination
+        const listings = await Listing.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum);
         
         // MongoDB returns `_id`. React Native expects `id`. Let's map it safely.
         const formattedListings = listings.map(l => ({ id: l._id, ...l._doc }));
         
         res.json(formattedListings);
     } catch (error) {
+        console.error("GET /listings error:", error);
         res.status(500).json({ error: 'Server error fetching listings' });
     }
 });
