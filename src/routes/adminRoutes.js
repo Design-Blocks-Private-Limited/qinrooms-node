@@ -26,6 +26,27 @@ router.get('/users', async (req, res) => {
     }
 });
 
+// 1.5 GET ALL DELETE REQUESTS
+router.get('/delete-requests', async (req, res) => {
+    try {
+        const users = await User.find({ deleteRequested: true }).sort({ createdAt: -1 }).lean();
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch delete requests' });
+    }
+});
+
+// 1.6 DENY DELETE REQUEST
+router.post('/delete-requests/:id/deny', async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(req.params.id, { $set: { deleteRequested: false } }, { new: true });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json({ success: true, message: 'Delete request denied and removed.' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to deny delete request' });
+    }
+});
+
 // 2. GET ALL LISTINGS (Hotels, Dorms, Houses)
 router.get('/listings', async (req, res) => {
     try {
@@ -364,6 +385,36 @@ router.patch('/support-tickets/:ticketId/resolve', async (req, res) => {
         res.json(ticket);
     } catch (error) {
         res.status(500).json({ error: 'Failed to resolve ticket' });
+    }
+});
+
+// ✅ SYSTEM LOGS ENDPOINTS
+const fs = require('fs');
+const path = require('path');
+
+router.get('/logs', (req, res) => {
+    try {
+        const logPath = path.join(__dirname, '../server.log');
+        if (!fs.existsSync(logPath)) return res.json({ logs: "No logs found." });
+        
+        // Read the last X characters or lines to avoid sending a massive file.
+        // For simplicity, we'll read the whole file. In production, consider tailing.
+        const logs = fs.readFileSync(logPath, 'utf8');
+        res.json({ logs });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to read logs' });
+    }
+});
+
+router.delete('/logs', (req, res) => {
+    try {
+        const logPath = path.join(__dirname, '../server.log');
+        if (fs.existsSync(logPath)) {
+            fs.writeFileSync(logPath, ''); // clear the file
+        }
+        res.json({ success: true, message: 'Logs cleared.' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to clear logs' });
     }
 });
 

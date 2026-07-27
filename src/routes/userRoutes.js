@@ -21,6 +21,10 @@ router.post('/me/verify', requireAuth, submitVerification);
 router.post('/register', requireAuth, registerUser);
 router.post('/delete-request', requireAuth, async (req, res) => {
     try {
+        const user = await User.findById(req.user.uid);
+        if (user && user.deleteRequested) {
+             return res.status(400).json({ error: "You have already submitted a delete request." });
+        }
         await User.findByIdAndUpdate(req.user.uid, { $set: { deleteRequested: true } });
         console.log(`Delete account request from user ${req.user.uid}`);
         res.status(200).json({ success: true, message: "Deletion request received and pending admin approval." });

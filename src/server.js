@@ -34,7 +34,13 @@ const supportRoutes = require("./routes/supportRoutes"); // ✅ IMPORT SUPPORT R
 
 const paymentRoutes = require("./routes/paymentRoutes");
 
+const fs = require("fs");
+const path = require("path");
+
 const app = express();
+
+// Create a write stream for morgan to log to a file
+const logStream = fs.createWriteStream(path.join(__dirname, 'server.log'), { flags: 'a' });
 
 // ✅ CREATE HTTP SERVER & SOCKET.IO INSTANCE
 
@@ -74,7 +80,8 @@ app.use(cors());
 
 app.use(helmet());
 
-app.use(morgan("dev"));
+app.use(morgan("dev")); // Keep console logging
+app.use(morgan("combined", { stream: logStream })); // Add file logging
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
