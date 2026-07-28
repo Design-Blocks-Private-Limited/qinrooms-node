@@ -12,17 +12,20 @@ const startCronJobs = () => {
         try {
             const now = new Date();
             
-            // Calculate timestamps
-            const twentyFourHoursFromNow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
-            const oneHourFromNow = new Date(now.getTime() + (1 * 60 * 60 * 1000));
+            // Calculate timestamps based on midnight-stored dates in DB
+            // Check-in is at 9:00 AM, so checkInDate + 9 hours is the real time.
+            // We want to send reminder 24 hours before that, so exactly at (checkInDate + 9 hours - 24 hours) = checkInDate - 15 hours.
+            // If we are checking "now", we look for bookings where checkInDate is between (now + 15 hours) and (now + 16 hours)
+            const fifteenHoursFromNow = new Date(now.getTime() + (15 * 60 * 60 * 1000));
+            const sixteenHoursFromNow = new Date(now.getTime() + (16 * 60 * 60 * 1000));
 
             // 1. Find bookings checking in exactly 24 hours from now
             // (We check a small 1-hour window so we don't miss them or double-send)
             const upcomingBookings = await Booking.find({
                 status: 'upcoming',
                 checkInDate: {
-                    $gte: now,
-                    $lte: twentyFourHoursFromNow
+                    $gte: fifteenHoursFromNow,
+                    $lte: sixteenHoursFromNow
                 }
             });
 
@@ -38,10 +41,15 @@ const startCronJobs = () => {
                 });
             }
 
-            // 2. Overdue Checkouts (If it is past checkOutDate and status is still 'active')
+            // 2. Overdue Checkouts (If it is past checkOutDate + 8 hours and status is still 'active')
+            // Checkout is at 8:00 AM. So actual checkout time is checkOutDate + 8 hours.
+            // A booking is overdue if (checkOutDate + 8 hours) < now
+            // Which is equivalent to: checkOutDate < (now - 8 hours)
+            const eightHoursAgo = new Date(now.getTime() - (8 * 60 * 60 * 1000));
+            
             const overdueBookings = await Booking.find({
                 status: 'active',
-                checkOutDate: { $lt: now } // Check out date is in the past!
+                checkOutDate: { $lt: eightHoursAgo } 
             });
 
             for (const booking of overdueBookings) {
