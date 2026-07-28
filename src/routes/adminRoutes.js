@@ -358,7 +358,7 @@ router.patch('/support-tickets/:ticketId/resolve', async (req, res) => {
         // Add automated system message before resolving
         ticket.messages.push({
             sender: 'system',
-            text: 'Hope you have a better experience with the chat! Please rate your support experience.'
+            text: 'Hope you have a better experience with the chat!\nThe issue is resolved.'
         });
 
         ticket.status = 'resolved';

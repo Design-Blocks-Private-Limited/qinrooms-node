@@ -38,7 +38,7 @@ router.post('/message', requireAuth, async (req, res) => {
         } else if (ticket.status === 'resolved') {
             ticket.status = 'open';
             ticket.rating = null; // reset rating on reopen
-            isNewOrReopened = true;
+            isNewOrReopened = 'reopened';
         }
 
         // Push the new message to the chat
@@ -48,10 +48,15 @@ router.post('/message', requireAuth, async (req, res) => {
         });
 
         // Add automated message if new or reopened
-        if (isNewOrReopened) {
+        if (isNewOrReopened === true) {
             ticket.messages.push({
                 sender: 'system',
-                text: 'Welcome to Qin Rooms, our executive will contact you ASAP.'
+                text: 'Welcome to Qin Rooms, our executive will contact you soon.'
+            });
+        } else if (isNewOrReopened === 'reopened') {
+            ticket.messages.push({
+                sender: 'system',
+                text: 'The ticket has been opened for an issue. The executive will contact you soon.'
             });
         }
 
