@@ -66,16 +66,17 @@ router.post('/message', requireAuth, async (req, res) => {
         try {
             const io = req.app.get('io');
             const roomName = `support_${ticket._id}`;
-            const savedMsg = ticket.messages[ticket.messages.length - 1];
-            io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
             
-            // Also notify the admin room in real-time
-            io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
+            // The user's message is always pushed before the optional system message
+            // If it's new/reopened, the user message is at length-2, else length-1
+            const userMsgIndex = isNewOrReopened ? ticket.messages.length - 2 : ticket.messages.length - 1;
+            const userMsg = ticket.messages[userMsgIndex];
             
+            io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: userMsg });
+            io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: userMsg });
             
-            // If this is a newly created ticket, or just reopened, broadcast creation event to admins
+            // If this is a newly created ticket, or just reopened, broadcast creation event and system message to admins
             if (isNewOrReopened) {
-                // If there's an automated message, broadcast it too
                 const sysMsg = ticket.messages[ticket.messages.length - 1];
                 if (sysMsg.sender === 'system') {
                     io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: sysMsg });
