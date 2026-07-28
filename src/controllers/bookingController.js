@@ -3,6 +3,7 @@ const Booking = require('../models/Booking');
 const Listing = require('../models/Listing');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+const Message = require('../models/Message');
 const { sendNotification } = require('../utils/notificationUtils');
 const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
@@ -130,9 +131,16 @@ const cancelBooking = async (req, res) => {
 
         // 3. Notify Chat
         const chatId = [booking.bookerId, booking.hostId].sort().join('_');
+        
+        const lastMsgObj = await Message.findOne({ chatId }).sort({ createdAt: -1 }).session(session);
+        let newLastMsg = "Reservation Cancelled ❌";
+        if (lastMsgObj) {
+            newLastMsg = lastMsgObj.text || (lastMsgObj.image ? "📷 Image" : "📍 Location");
+        }
+
         await Chat.findOneAndUpdate(
             { chatId },
-            { $set: { lastMessage: "Reservation Cancelled ❌", lastUpdated: new Date() } },
+            { $set: { lastMessage: newLastMsg, lastUpdated: new Date() } },
             { session }
         );
 
@@ -284,6 +292,13 @@ const createBooking = async (req, res) => {
         // Initialize Chat for Homes/Barns
         if (type !== 'hotel' && type !== 'dorm') {
             const chatId = [req.user.uid, req.body.hostId].sort().join('_');
+            
+            const lastMsgObj = await Message.findOne({ chatId }).sort({ createdAt: -1 }).session(session);
+            let newLastMsg = "Booking Confirmed! 📅";
+            if (lastMsgObj) {
+                newLastMsg = lastMsgObj.text || (lastMsgObj.image ? "📷 Image" : "📍 Location");
+            }
+
             await Chat.findOneAndUpdate(
                 { chatId: chatId },
                 { 
@@ -292,7 +307,7 @@ const createBooking = async (req, res) => {
                         guestId: req.user.uid,
                         hostId: req.body.hostId,
                         userDetails: req.body.chatUserDetails,
-                        lastMessage: "Booking Confirmed! 📅",
+                        lastMessage: newLastMsg,
                         lastUpdated: new Date()
                     }
                 },
