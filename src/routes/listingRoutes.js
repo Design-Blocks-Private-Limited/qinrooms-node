@@ -5,6 +5,28 @@ const User = require('../models/User'); // ✅ 1. ADDED: Need this to check if u
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { getPricing } = require('../controllers/pricingController');
 
+// GET /api/listings/status/bulk?ids=1,2,3
+router.get('/status/bulk', requireAuth, async (req, res) => {
+    try {
+        const { ids } = req.query;
+        if (!ids) {
+            return res.json({ statusMap: {} });
+        }
+        const idArray = ids.split(',');
+        const listings = await Listing.find({ _id: { $in: idArray } }, 'status').lean();
+        
+        const statusMap = {};
+        listings.forEach(listing => {
+            statusMap[listing._id.toString()] = listing.status;
+        });
+
+        res.json({ statusMap });
+    } catch (error) {
+        console.error("Bulk status fetch error:", error);
+        res.status(500).json({ message: "Failed to fetch status" });
+    }
+});
+
 // GET /api/listings?type=House,Apartment,Barn
 router.get('/', async (req, res) => {
     try {
