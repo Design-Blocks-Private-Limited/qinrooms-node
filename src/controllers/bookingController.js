@@ -23,17 +23,6 @@ const toDateId = (adjustedDate) => {
     return `${year}-${month}-${day}`;
 };
 
-// Dynamically sets status to "completed" if it's an old booking still marked as upcoming/active
-const evaluateBookingStatus = (bookingDoc) => {
-    const data = { id: bookingDoc._id, ...bookingDoc._doc };
-    if ((data.status === 'upcoming' || data.status === 'active') && data.checkOutDate) {
-        if (new Date(data.checkOutDate) < new Date()) {
-            data.status = 'completed';
-        }
-    }
-    return data;
-};
-
 
 // 1. FETCH ACTIVE AND UPCOMING RESERVATIONS FOR THE HOST
 const getHostReservations = async (req, res) => {
@@ -50,7 +39,7 @@ const getHostReservations = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        const formatted = bookings.map(evaluateBookingStatus);
+        const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Failed to fetch reservations:", error);
@@ -70,7 +59,7 @@ const getMyTrips = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        const formatted = bookings.map(evaluateBookingStatus);
+        const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Failed to fetch trips:", error);
@@ -120,8 +109,7 @@ const getBookingById = async (req, res) => {
             }
         }
 
-        const evaluatedBooking = evaluateBookingStatus(booking);
-        res.json({ ...evaluatedBooking, hostDetails });
+        res.json({ id: booking._id, ...booking._doc, hostDetails });
     } catch (error) {
         res.status(500).json({ error: error.message, stack: error.stack });
     }
