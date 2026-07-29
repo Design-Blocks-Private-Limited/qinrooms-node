@@ -23,6 +23,18 @@ const toDateId = (adjustedDate) => {
     return `${year}-${month}-${day}`;
 };
 
+// Dynamically sets status to "completed" if it's an old booking still marked as upcoming/active
+const evaluateBookingStatus = (bookingDoc) => {
+    const data = { id: bookingDoc._id, ...bookingDoc._doc };
+    if ((data.status === 'upcoming' || data.status === 'active') && data.checkOutDate) {
+        if (new Date(data.checkOutDate) < new Date()) {
+            data.status = 'completed';
+        }
+    }
+    return data;
+};
+
+
 // 1. FETCH ACTIVE AND UPCOMING RESERVATIONS FOR THE HOST
 const getHostReservations = async (req, res) => {
     try {
@@ -38,7 +50,7 @@ const getHostReservations = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
+        const formatted = bookings.map(evaluateBookingStatus);
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Failed to fetch reservations:", error);
@@ -58,7 +70,7 @@ const getMyTrips = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
+        const formatted = bookings.map(evaluateBookingStatus);
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
         console.error("Failed to fetch trips:", error);
@@ -87,9 +99,13 @@ const getBookingById = async (req, res) => {
                 if (isValidObjectId) {
                     host = await User.findById(booking.hostId);
                 } else {
-                    // Try to find by string ID if the schema supports it, or ignore
-                    // In this case we just ignore if it's not a valid ObjectId to prevent 500 error
-                    console.warn(`Booking ${booking._id} has non-ObjectId hostId: ${booking.hostId}`);
+                    // Bypass Mongoose strict casting by using native MongoDB driver
+                    // for legacy Firebase string _id values
+                    host = await User.collection.findOne({ _id: booking.hostId });
+                    if (!host) {
+                        // Also check if they stored it in a `uid` field just in case
+                        host = await User.collection.findOne({ uid: booking.hostId });
+                    }
                 }
 
                 if (host) {
@@ -104,7 +120,8 @@ const getBookingById = async (req, res) => {
             }
         }
 
-        res.json({ id: booking._id, ...booking._doc, hostDetails });
+        const evaluatedBooking = evaluateBookingStatus(booking);
+        res.json({ ...evaluatedBooking, hostDetails });
     } catch (error) {
         res.status(500).json({ error: error.message, stack: error.stack });
     }
