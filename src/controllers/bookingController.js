@@ -77,7 +77,20 @@ const getBookingById = async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
-        res.json({ id: booking._id, ...booking._doc });
+        // Fetch host details
+        let hostDetails = null;
+        if (booking.hostId) {
+            const host = await User.findById(booking.hostId);
+            if (host) {
+                hostDetails = {
+                    name: host.name,
+                    phoneNumber: host.phoneNumber,
+                    photoURL: host.photoURL
+                };
+            }
+        }
+
+        res.json({ id: booking._id, ...booking._doc, hostDetails });
     } catch (error) {
         res.status(500).json({ error: 'Error fetching booking' });
     }

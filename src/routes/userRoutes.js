@@ -5,10 +5,10 @@ const { requireAuth } = require('../middlewares/authMiddleware');
 const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser, submitVerification } = require('../controllers/userController');
 const User = require('../models/User'); 
 
-// Security: Rate limiting for auth routes (max 5 requests per 15 minutes)
+// Security: Rate limiting for auth routes (increased for dev testing)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
-    max: 5,
+    max: 50,
     message: { error: 'Too many login attempts. Please try again after 15 minutes.' }
 });
 
