@@ -62,6 +62,19 @@ const startCronJobs = () => {
                 });
             }
 
+            // 3. Mark expired bookings as completed
+            const expiredBookingsResult = await Booking.updateMany(
+                {
+                    status: { $in: ['upcoming', 'active'] },
+                    checkOutDate: { $lt: eightHoursAgo } 
+                },
+                { $set: { status: 'completed' } }
+            );
+
+            if (expiredBookingsResult.modifiedCount > 0) {
+                console.log(`[CRON] Automatically marked ${expiredBookingsResult.modifiedCount} bookings as completed.`);
+            }
+
         } catch (error) {
             console.error("Cron Job Error:", error);
         }
