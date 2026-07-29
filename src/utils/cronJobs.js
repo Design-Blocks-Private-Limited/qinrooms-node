@@ -62,17 +62,26 @@ const startCronJobs = () => {
                 });
             }
 
-            // 3. Mark expired bookings as completed
-            const expiredBookingsResult = await Booking.updateMany(
+            // 3. Mark expired bookings as no show (if they never checked in)
+            const noShowResult = await Booking.updateMany(
                 {
-                    status: { $in: ['upcoming', 'active'] },
+                    status: 'upcoming',
                     checkOutDate: { $lt: eightHoursAgo } 
                 },
-                { $set: { status: 'completed' } }
+                { $set: { status: 'no show' } }
             );
 
-            if (expiredBookingsResult.modifiedCount > 0) {
-                console.log(`[CRON] Automatically marked ${expiredBookingsResult.modifiedCount} bookings as completed.`);
+            // 4. Mark checked-out bookings (if they were active)
+            const checkedOutResult = await Booking.updateMany(
+                {
+                    status: 'active',
+                    checkOutDate: { $lt: eightHoursAgo } 
+                },
+                { $set: { status: 'checkedout' } }
+            );
+
+            if (noShowResult.modifiedCount > 0 || checkedOutResult.modifiedCount > 0) {
+                console.log(`[CRON] Automatically marked ${noShowResult.modifiedCount} bookings as 'no show' and ${checkedOutResult.modifiedCount} as 'checkedout'.`);
             }
 
         } catch (error) {
