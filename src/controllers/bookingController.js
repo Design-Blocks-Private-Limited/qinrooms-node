@@ -77,22 +77,36 @@ const getBookingById = async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
-        // Fetch host details
+        // Fetch host details safely (handle legacy Firebase UID strings)
         let hostDetails = null;
         if (booking.hostId) {
-            const host = await User.findById(booking.hostId);
-            if (host) {
-                hostDetails = {
-                    name: host.name,
-                    phoneNumber: host.phoneNumber,
-                    photoURL: host.photoURL
-                };
+            try {
+                const isValidObjectId = mongoose.Types.ObjectId.isValid(booking.hostId);
+                let host = null;
+                
+                if (isValidObjectId) {
+                    host = await User.findById(booking.hostId);
+                } else {
+                    // Try to find by string ID if the schema supports it, or ignore
+                    // In this case we just ignore if it's not a valid ObjectId to prevent 500 error
+                    console.warn(`Booking ${booking._id} has non-ObjectId hostId: ${booking.hostId}`);
+                }
+
+                if (host) {
+                    hostDetails = {
+                        name: host.name,
+                        phoneNumber: host.phoneNumber,
+                        photoURL: host.photoURL
+                    };
+                }
+            } catch (err) {
+                console.error("Error fetching host details:", err.message);
             }
         }
 
         res.json({ id: booking._id, ...booking._doc, hostDetails });
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching booking' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
