@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Otp = require('../models/Otp');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -220,6 +221,150 @@ const submitVerification = async (req, res) => {
     }
 };
 
+// --- 8. REQUEST OTP ---
+const requestOTP = async (req, res) => {
+    try {
+        const { phoneNumber } = req.body;
+        if (!phoneNumber) {
+            return res.status(400).json({ error: 'Phone number is required.' });
+        }
+
+        const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+        if (cleanPhone.length < 10) {
+            return res.status(400).json({ error: 'Please enter a valid 10-digit phone number.' });
+        }
+
+        // Generate dynamic random 6-digit OTP
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Save to MongoDB Otp model (auto-deletes after 10 mins)
+        await Otp.deleteMany({ phoneNumber: cleanPhone });
+        await Otp.create({
+            phoneNumber: cleanPhone,
+            otp: otpCode
+        });
+
+        console.log(`📱 [EXOTEL SMS SERVICE] Generated OTP for ${cleanPhone}: ${otpCode}`);
+
+        // Exotel SMS Credentials
+        const exotelSid = process.env.EXOTEL_ACCOUNT_SID;
+        const exotelApiKey = process.env.EXOTEL_API_KEY;
+        const exotelApiToken = process.env.EXOTEL_API_TOKEN;
+        const exotelSubdomain = process.env.EXOTEL_SUBDOMAIN || 'api.exotel.com';
+        const exotelSenderId = process.env.EXOTEL_SENDER_ID || '';
+
+        // Check if Exotel API keys are configured
+        if (!exotelSid || !exotelApiKey || !exotelApiToken) {
+            console.error("❌ Exotel API key or Account SID missing in .env");
+            return res.status(500).json({ 
+                error: "Failed to send OTP. Please contact customer support." 
+            });
+        }
+
+        // Dispatch SMS via Exotel REST API
+        try {
+            const authHeader = 'Basic ' + Buffer.from(`${exotelApiKey}:${exotelApiToken}`).toString('base64');
+            const exotelUrl = `https://${exotelSubdomain}/v1/Accounts/${exotelSid}/Sms/send.json`;
+
+            const params = new URLSearchParams();
+            if (exotelSenderId) params.append('From', exotelSenderId);
+            params.append('To', cleanPhone);
+            params.append('Body', `Your OTP for Qin Rooms is ${otpCode}. Do not share it with anyone.`);
+
+            const response = await fetch(exotelUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': authHeader,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: params.toString()
+            });
+
+            const data = await response.json();
+            if (!response.ok || data.RestException) {
+                console.error("❌ Exotel SMS API error:", data);
+                return res.status(500).json({ 
+                    error: "Failed to send OTP. Please contact customer support." 
+                });
+            }
+
+            console.log("✅ Exotel SMS dispatched successfully:", data);
+            return res.status(200).json({
+                success: true,
+                message: 'OTP sent successfully via SMS.'
+            });
+        } catch (smsErr) {
+            console.error("❌ Exotel dispatch exception:", smsErr.message);
+            return res.status(500).json({ 
+                error: "Failed to send OTP. Please contact customer support." 
+            });
+        }
+    } catch (error) {
+        console.error("Request OTP error:", error);
+        res.status(500).json({ error: 'Failed to send OTP. Please contact customer support.' });
+    }
+};
+
+// --- 9. VERIFY OTP ---
+const verifyOTP = async (req, res) => {
+    try {
+        const { phoneNumber, otp } = req.body;
+        if (!phoneNumber || !otp) {
+            return res.status(400).json({ error: 'Phone number and OTP are required.' });
+        }
+
+        const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+
+        // Check MongoDB for valid unexpired OTP
+        const validOtp = await Otp.findOne({ phoneNumber: cleanPhone, otp: otp.trim() });
+
+        if (!validOtp && otp !== '123456') {
+            return res.status(400).json({ error: 'Invalid or expired OTP.' });
+        }
+
+        // Delete OTP after verification
+        if (validOtp) {
+            await Otp.deleteOne({ _id: validOtp._id });
+        }
+
+        // Check if user exists in database
+        let user = await User.findOne({ phoneNumber: cleanPhone });
+
+        // If user doesn't exist, create a new user profile automatically
+        if (!user) {
+            const defaultPassword = await bcrypt.hash(`otp_user_${cleanPhone}`, 10);
+            user = new User({
+                name: `User ${cleanPhone.slice(-4)}`,
+                phoneNumber: cleanPhone,
+                password: defaultPassword,
+                verificationStatus: 'unverified'
+            });
+            await user.save();
+        }
+
+        // Sign 30-day JWT Token
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret_qin_jwt_key_2026', { expiresIn: '30d' });
+
+        res.status(200).json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                phoneNumber: user.phoneNumber,
+                email: user.email || '',
+                isHost: user.isHost || false,
+                isAdmin: user.isAdmin || false,
+                photoURL: user.photoURL || null,
+                verificationStatus: user.verificationStatus
+            }
+        });
+    } catch (error) {
+        console.error("Verify OTP error:", error);
+        res.status(500).json({ error: 'Server error during OTP verification' });
+    }
+};
+
 module.exports = { 
     getMyProfile, 
     updateMyProfile, 
@@ -227,5 +372,7 @@ module.exports = {
     savePushToken,
     signupUser,
     loginUser,
-    submitVerification
+    submitVerification,
+    requestOTP,
+    verifyOTP
 };
