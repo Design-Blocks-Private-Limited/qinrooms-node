@@ -77,6 +77,7 @@ io.on("connection", (socket) => {
 });
 
 app.use(cors());
+app.disable('etag');
 
 app.use(helmet());
 
