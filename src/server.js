@@ -33,6 +33,7 @@ const reviewRoutes = require("./routes/reviewRoutes");
 const supportRoutes = require("./routes/supportRoutes"); // ✅ IMPORT SUPPORT ROUTE
 
 const paymentRoutes = require("./routes/paymentRoutes");
+const settingRoutes = require("./routes/settingRoutes");
 
 const fs = require("fs");
 const path = require("path");
@@ -98,6 +99,7 @@ app.use("/api/listings", listingRoutes);
 app.use("/api/wishlists", wishlistRoutes);
 
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/settings", settingRoutes);
 
 app.use("/api/upload", require("./routes/uploadRoutes"));
 
