@@ -22,7 +22,7 @@ router.get('/status/bulk', requireAuth, async (req, res) => {
 
         res.json({ statusMap });
     } catch (error) {
-        console.error("Bulk status fetch error:", error);
+
         res.status(500).json({ message: "Failed to fetch status" });
     }
 });
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
         
         res.json(formattedListings);
     } catch (error) {
-        console.error("GET /listings error:", error);
+
         res.status(500).json({ error: 'Server error fetching listings' });
     }
 });
@@ -82,12 +82,12 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
         if (req.query.type) {
             query.type = req.query.type;
         }
-        console.log(`[my-host-listings] req.query.type: "${req.query.type}", constructed query:`, JSON.stringify(query));
+
         const listings = await Listing.find(query).sort({ createdAt: -1 });
         const formattedListings = listings.map(l => ({ id: l._id, ...l._doc }));
         res.json(formattedListings);
     } catch (error) {
-        console.error("Fetch host listings error:", error);
+
         res.status(500).json({ error: 'Failed to fetch your listings' });
     }
 });
@@ -106,7 +106,7 @@ router.get('/:id', async (req, res) => {
         if (error.name === 'CastError') {
             return res.status(404).json({ error: 'Listing not found (Invalid ID format)' });
         }
-        console.error("Single Listing Error:", error.message);
+
         res.status(500).json({ error: 'Server error fetching listing' });
     }
 });
@@ -126,7 +126,7 @@ router.post('/', requireAuth, async (req, res) => {
         await newListing.save();
         res.status(201).json({ id: newListing._id, ...newListing._doc });
     } catch (error) {
-        console.error("Create listing error:", error);
+
         res.status(500).json({ error: 'Failed to create listing' });
     }
 });
@@ -157,7 +157,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 
         res.json({ id: listing._id, ...listing._doc });
     } catch (error) {
-        console.error("Update listing error:", error);
+
         res.status(500).json({ error: 'Failed to update listing' });
     }
 });

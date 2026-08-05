@@ -17,7 +17,7 @@ const createOrUpdateChat = async (req, res) => {
 
         res.status(201).json(chat);
     } catch (error) {
-        console.error("Failed to create chat:", error);
+
         res.status(500).json({ error: 'Failed to create chat' });
     }
 };
@@ -46,7 +46,7 @@ const getUserChats = async (req, res) => {
         const formatted = chats.map(c => ({ id: c._id, ...c._doc }));
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
-        console.error("Inbox fetch error:", error);
+
         res.status(500).json({ error: 'Failed to fetch inbox' });
     }
 };
@@ -103,10 +103,10 @@ const sendMessage = async (req, res) => {
             if (io) {
                 io.to(chatId).emit('receive_message', newMessage);
             } else {
-                console.warn(`[chatController] Socket.io instance not found on req.app, message sent but not broadcasted via socket`);
+
             }
         } catch (socketError) {
-            console.error("Socket emit error:", socketError);
+
         }
 
         // ✅ 4. SEND PUSH NOTIFICATION
@@ -130,12 +130,12 @@ const sendMessage = async (req, res) => {
                 }
             }
         } catch (notifError) {
-            console.error("Failed to send push notification:", notifError);
+
         }
 
         res.status(201).json(newMessage);
     } catch (error) {
-        console.error("Save message error details:", error.message, error.stack);
+
         res.status(500).json({ error: 'Failed to send message', details: error.message });
     }
 };

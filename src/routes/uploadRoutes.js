@@ -30,7 +30,7 @@ router.get('/signature', requireAuth, (req, res) => {
             cloudName: process.env.CLOUDINARY_CLOUD_NAME
         });
     } catch (error) {
-        console.error("Signature generation error:", error);
+
         res.status(500).json({ error: "Failed to generate upload signature" });
     }
 });

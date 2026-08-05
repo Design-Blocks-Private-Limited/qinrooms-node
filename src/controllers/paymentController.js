@@ -28,7 +28,7 @@ exports.createOrder = async (req, res) => {
 
     res.json({ ...order, key_id: process.env.RAZORPAY_KEY_ID });
   } catch (error) {
-    console.error("Razorpay Create Order Error:", error);
+
     res.status(500).json({ error: "Error creating Razorpay order" });
   }
 };
@@ -53,7 +53,7 @@ exports.verifyPayment = async (req, res) => {
       res.status(400).json({ success: false, error: "Invalid signature" });
     }
   } catch (error) {
-    console.error("Razorpay Verify Error:", error);
+
     res.status(500).json({ error: "Error verifying payment" });
   }
 };
@@ -82,7 +82,7 @@ exports.verifyAndBook = async (req, res) => {
     return bookingController.createBooking(req, res);
 
   } catch (error) {
-    console.error("verifyAndBook Error:", error);
+
     res.status(500).json({ error: "Error during verified booking creation" });
   }
 };
@@ -93,7 +93,7 @@ exports.processRefund = async (paymentId, amount) => {
     const refund = await razorpay.payments.refund(paymentId, { amount: Math.round(amount * 100) });
     return refund;
   } catch (error) {
-    console.error("Razorpay Refund Error:", error);
+
     throw error;
   }
 };

@@ -5,7 +5,7 @@ const Booking = require('../models/Booking');
 const Listing = require('../models/Listing');
 
 const startCronJobs = () => {
-    console.log("⏰ Notification Cron Jobs Started...");
+
 
     // This runs EVERY HOUR at the top of the hour (e.g., 1:00, 2:00, 3:00)
     cron.schedule('0 * * * *', async () => {
@@ -81,11 +81,11 @@ const startCronJobs = () => {
             );
 
             if (noShowResult.modifiedCount > 0 || checkedOutResult.modifiedCount > 0) {
-                console.log(`[CRON] Automatically marked ${noShowResult.modifiedCount} bookings as 'no show' and ${checkedOutResult.modifiedCount} as 'checkedout'.`);
+
             }
 
         } catch (error) {
-            console.error("Cron Job Error:", error);
+
         }
     });
 };

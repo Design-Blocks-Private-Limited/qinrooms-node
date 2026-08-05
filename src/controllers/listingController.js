@@ -51,7 +51,7 @@ const createListing = async (req, res) => {
                     }
                 }
             } catch (err) {
-                console.error("Geocoding failed:", err);
+
                 // Non-fatal, just continue without coords
             }
         }

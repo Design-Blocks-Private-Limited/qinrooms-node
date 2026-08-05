@@ -86,13 +86,13 @@ router.post('/message', requireAuth, async (req, res) => {
                 io.to('support_admins').emit('support_ticket_created', ticket);
             }
         } catch (socketError) {
-            console.error("Failed to broadcast support message via socket:", socketError);
+
         }
 
         res.status(201).json(ticket);
 
     } catch (error) {
-        console.error("Error sending support message:", error);
+
         res.status(500).json({ error: 'Failed to send message.' });
     }
 });
@@ -113,7 +113,7 @@ router.patch('/rate', requireAuth, async (req, res) => {
 
         res.json(ticket);
     } catch (error) {
-        console.error("Error submitting rating:", error);
+
         res.status(500).json({ error: 'Failed to submit rating.' });
     }
 });

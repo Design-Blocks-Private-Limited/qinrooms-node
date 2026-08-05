@@ -16,7 +16,7 @@ exports.getPricing = async (req, res) => {
     }
     res.status(200).json(pricing);
   } catch (error) {
-    console.error("Error fetching pricing:", error);
+
     res.status(500).json({ message: "Server error fetching pricing data." });
   }
 };
@@ -47,7 +47,7 @@ exports.updatePricing = async (req, res) => {
 
     res.status(200).json({ message: "Pricing updated successfully", pricing });
   } catch (error) {
-    console.error("Error updating pricing:", error);
+
     res.status(500).json({ message: "Server error updating pricing data." });
   }
 };

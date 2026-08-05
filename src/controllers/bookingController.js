@@ -42,7 +42,7 @@ const getHostReservations = async (req, res) => {
         const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
-        console.error("Failed to fetch reservations:", error);
+
         res.status(500).json({ error: 'Failed to fetch reservations' });
     }
 };
@@ -62,7 +62,7 @@ const getMyTrips = async (req, res) => {
         const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
-        console.error("Failed to fetch trips:", error);
+
         res.status(500).json({ error: 'Failed to fetch trips' });
     }
 };
@@ -105,7 +105,7 @@ const getBookingById = async (req, res) => {
                     };
                 }
             } catch (err) {
-                console.error("Error fetching host details:", err.message);
+
             }
         }
 
@@ -165,7 +165,7 @@ const cancelBooking = async (req, res) => {
         const chatId = [booking.bookerId, booking.hostId].sort().join('_');
         
         const lastMsgObj = await Message.findOne({ chatId }).sort({ createdAt: -1 }).session(session);
-        let newLastMsg = "Reservation Cancelled ❌";
+        let newLastMsg = "";
         if (lastMsgObj) {
             newLastMsg = lastMsgObj.text || (lastMsgObj.image ? "📷 Image" : "📍 Location");
         }
@@ -247,7 +247,7 @@ const updateBooking = async (req, res) => {
         await booking.save();
         res.json({ id: booking._id, ...booking._doc });
     } catch (error) {
-        console.error("Update booking error:", error);
+
         res.status(500).json({ error: 'Failed to update booking' });
     }
 };
@@ -326,7 +326,7 @@ const createBooking = async (req, res) => {
             const chatId = [req.user.uid, req.body.hostId].sort().join('_');
             
             const lastMsgObj = await Message.findOne({ chatId }).sort({ createdAt: -1 }).session(session);
-            let newLastMsg = "Booking Confirmed! 📅";
+            let newLastMsg = "";
             if (lastMsgObj) {
                 newLastMsg = lastMsgObj.text || (lastMsgObj.image ? "📷 Image" : "📍 Location");
             }
@@ -424,7 +424,7 @@ const searchGuest = async (req, res) => {
 
         res.json({ found: false });
     } catch (error) {
-        console.error("Search guest error:", error);
+
         res.status(500).json({ error: "Failed to search guest details" });
     }
 };

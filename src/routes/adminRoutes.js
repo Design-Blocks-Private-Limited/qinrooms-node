@@ -68,7 +68,7 @@ router.delete('/listings/:id', async (req, res) => {
 
         res.json({ success: true, message: 'Property permanently deleted.' });
     } catch (error) {
-        console.error("Admin Delete Listing Error:", error);
+
         res.status(500).json({ error: 'Failed to delete listing from server' });
     }
 });
@@ -110,7 +110,7 @@ router.post('/bookings/:id/refund', async (req, res) => {
         
         res.json({ success: true, message: 'Refund processed successfully', booking });
     } catch (error) {
-        console.error("Admin Refund Error:", error);
+
         res.status(500).json({ error: error.description || 'Failed to process refund with Razorpay' });
     }
 });
@@ -132,7 +132,7 @@ router.post('/users/:id/verify', async (req, res) => {
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json({ success: true, user });
     } catch (error) {
-        console.error("Admin Verify Error:", error);
+
         res.status(500).json({ error: 'Failed to verify host' });
     }
 });
@@ -155,7 +155,7 @@ router.patch('/users/:id', async (req, res) => {
 
         res.json(updatedUser);
     } catch (error) {
-        console.error("Admin Edit User Error:", error);
+
         res.status(500).json({ error: 'Failed to update user' });
     }
 });
@@ -172,7 +172,7 @@ router.delete('/users/:id', async (req, res) => {
 
         // Step 1: Delete all Listings hosted by this user (Cascading Delete)
         const deletedListings = await Listing.deleteMany({ hostId: userId });
-        console.log(`Deleted ${deletedListings.deletedCount} listings belonging to user ${userId}`);
+
 
         // Step 2: Delete the User from MongoDB
         let queryUserId = userId;
@@ -190,7 +190,7 @@ router.delete('/users/:id', async (req, res) => {
             message: `User and their ${deletedListings.deletedCount} listings completely wiped from system.` 
         });
     } catch (error) {
-        console.error("Admin Delete User Error:", error);
+
         res.status(500).json({ error: 'Failed to completely delete user and their data' });
     }
 });
@@ -227,7 +227,7 @@ router.post('/create-admin', async (req, res) => {
 
         res.status(201).json({ success: true, user: newAdmin });
     } catch (error) {
-        console.error("Create Admin Error:", error);
+
         res.status(400).json({ error: error.message || 'Failed to create admin user' });
     }
 });
@@ -248,7 +248,7 @@ router.patch('/bookings/:id', async (req, res) => {
 
         res.json(updatedBooking);
     } catch (error) {
-        console.error("Admin Update Booking Error:", error);
+
         res.status(500).json({ error: 'Failed to update booking' });
     }
 });
@@ -264,7 +264,7 @@ router.delete('/bookings/:id', async (req, res) => {
 
         res.json({ success: true, message: 'Booking permanently deleted.' });
     } catch (error) {
-        console.error("Admin Delete Booking Error:", error);
+
         res.status(500).json({ error: 'Failed to delete booking' });
     }
 });
@@ -288,7 +288,7 @@ router.get('/support-tickets', async (req, res) => {
                     ticket.userPhoto = user.photoURL || null;
                 }
             } catch (err) {
-                console.error("Failed to fetch user for ticket", ticket._id, err);
+
             }
 
             if (!userTicketsMap[ticket.userId]) {
@@ -306,7 +306,7 @@ router.get('/support-tickets', async (req, res) => {
         const mergedTickets = Object.values(userTicketsMap).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
         res.json(mergedTickets);
     } catch (error) {
-        console.error("Failed to fetch tickets:", error);
+
         res.status(500).json({ error: 'Failed to fetch tickets' });
     }
 });
@@ -340,7 +340,7 @@ router.post('/support-tickets/:ticketId/message', async (req, res) => {
             // Also broadcast to the support_admins room
             io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: savedMsg });
         } catch (socketError) {
-            console.error("Failed to broadcast admin support message:", socketError);
+
         }
 
         res.json(ticket);
@@ -379,7 +379,7 @@ router.patch('/support-tickets/:ticketId/resolve', async (req, res) => {
             // Also broadcast to the support_admins room
             io.to('support_admins').emit('support_ticket_resolved', { ticketId: ticket._id });
         } catch (socketError) {
-            console.error("Failed to broadcast support ticket resolution:", socketError);
+
         }
 
         res.json(ticket);

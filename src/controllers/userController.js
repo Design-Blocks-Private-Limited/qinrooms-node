@@ -10,7 +10,7 @@ const getMyProfile = async (req, res) => {
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
     } catch (error) {
-        console.error("Fetch profile error:", error);
+
         res.status(500).json({ error: 'Server error fetching profile' });
     }
 };
@@ -34,7 +34,7 @@ const updateMyProfile = async (req, res) => {
         if (!updatedUser) return res.status(404).json({ error: 'User not found' });
         res.json(updatedUser);
     } catch (error) {
-        console.error("Update profile error:", error);
+
         res.status(500).json({ error: 'Failed to update profile' });
     }
 };
@@ -62,7 +62,7 @@ const registerUser = async (req, res) => {
         await newUser.save();
         res.status(201).json(newUser);
     } catch (error) {
-        console.error("Registration error:", error);
+
         res.status(500).json({ error: 'Failed to create user profile in database' });
     }
 };
@@ -84,7 +84,7 @@ const savePushToken = async (req, res) => {
         
         res.status(200).json({ message: "Push token saved successfully!" });
     } catch (error) {
-        console.error("Save token error:", error);
+
         res.status(500).json({ error: "Failed to save push token" });
     }
 };
@@ -144,7 +144,7 @@ const signupUser = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Signup error:", error);
+
         res.status(500).json({ error: 'Failed to register user in database' });
     }
 };
@@ -197,7 +197,7 @@ const loginUser = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Login error:", error);
+
         res.status(500).json({ error: 'Server error during login' });
     }
 };
@@ -216,7 +216,7 @@ const submitVerification = async (req, res) => {
 
         res.status(200).json(updatedUser);
     } catch (error) {
-        console.error("Submit verification error:", error);
+
         res.status(500).json({ error: 'Failed to submit verification' });
     }
 };
@@ -234,8 +234,8 @@ const requestOTP = async (req, res) => {
             return res.status(400).json({ error: 'Please enter a valid 10-digit phone number.' });
         }
 
-        // Generate dynamic random 6-digit OTP
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        // Generate dynamic random 4-digit OTP
+        const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
 
         // Save to MongoDB Otp model (auto-deletes after 10 mins)
         await Otp.deleteMany({ phoneNumber: cleanPhone });
@@ -244,7 +244,7 @@ const requestOTP = async (req, res) => {
             otp: otpCode
         });
 
-        console.log(`📱 [EXOTEL SMS SERVICE] Generated OTP for ${cleanPhone}: ${otpCode}`);
+
 
         // Exotel SMS Credentials
         const exotelSid = process.env.EXOTEL_ACCOUNT_SID;
@@ -255,7 +255,7 @@ const requestOTP = async (req, res) => {
 
         // Check if Exotel API keys are fully configured
         if (!exotelSid || !exotelApiKey || !exotelApiToken || exotelApiKey.trim() === '' || exotelApiToken.trim() === '') {
-            console.warn(`⚠️ Exotel API keys missing/incomplete in .env. Dev OTP for ${cleanPhone}: ${otpCode}`);
+
             return res.status(200).json({ 
                 success: true,
                 message: "OTP generated. (Check backend console for code or use 123456)" 
@@ -272,7 +272,7 @@ const requestOTP = async (req, res) => {
             const params = new URLSearchParams();
             if (exotelSenderId) params.append('From', exotelSenderId);
             params.append('To', formattedPhone);
-            params.append('Body', `Your OTP for Qin Rooms is ${otpCode}. Do not share it with anyone.`);
+            params.append('Body', `INRYDE: Your booking OTP is ${otpCode} Use this to confirm your ride. OTP valid for 10 minutes.`);
 
             // DLT Template & Entity ID for Indian Telecom Operators
             if (process.env.EXOTEL_DLT_ENTITY_ID) params.append('DltEntityId', process.env.EXOTEL_DLT_ENTITY_ID);
@@ -289,29 +289,29 @@ const requestOTP = async (req, res) => {
 
             const data = await response.json();
             if (!response.ok || data.RestException) {
-                console.error("❌ Exotel SMS API error:", data);
-                console.warn(`⚠️ Dev OTP for ${cleanPhone}: ${otpCode} (Use this in app while Exotel key is unconfigured)`);
+
+
                 return res.status(200).json({ 
                     success: true,
                     message: "OTP sent." 
                 });
             }
 
-            console.log("✅ Exotel SMS dispatched successfully:", data);
+
             return res.status(200).json({
                 success: true,
                 message: 'OTP sent successfully via SMS.'
             });
         } catch (smsErr) {
-            console.error("❌ Exotel dispatch exception:", smsErr.message);
-            console.warn(`⚠️ Dev OTP for ${cleanPhone}: ${otpCode}`);
+
+
             return res.status(200).json({ 
                 success: true,
                 message: "OTP sent." 
             });
         }
     } catch (error) {
-        console.error("Request OTP error:", error);
+
         res.status(500).json({ error: 'Failed to send OTP. Please contact customer support.' });
     }
 };
@@ -371,7 +371,7 @@ const verifyOTP = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Verify OTP error:", error);
+
         res.status(500).json({ error: 'Server error during OTP verification' });
     }
 };

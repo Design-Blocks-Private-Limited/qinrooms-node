@@ -34,7 +34,7 @@ const getReviewsByListing = async (req, res) => {
 
         res.json(formatPaginatedResponse(reviews, total, page, limit));
     } catch (error) {
-        console.error("Error fetching reviews:", error);
+
         res.status(500).json({ error: 'Server error fetching reviews' });
     }
 };
@@ -79,7 +79,7 @@ const createReview = async (req, res) => {
                 });
             }
         } catch (notifErr) {
-            console.error("Failed to notify host about review:", notifErr);
+
         }
 
         res.status(201).json({ message: "Review posted successfully!", review: newReview });
@@ -88,7 +88,7 @@ const createReview = async (req, res) => {
         if (error.code === 11000) {
             return res.status(400).json({ error: "You have already reviewed this listing." });
         }
-        console.error("Error posting review:", error);
+
         res.status(500).json({ error: 'Failed to post review' });
     }
 };
@@ -127,13 +127,13 @@ const replyToReview = async (req, res) => {
                 relatedId: listing._id.toString()
             });
         } catch (notifErr) {
-            console.error("Failed to notify guest about reply:", notifErr);
+
         }
 
         res.json({ message: "Reply posted successfully!", review });
 
     } catch (error) {
-        console.error("Error posting host reply:", error);
+
         res.status(500).json({ error: 'Failed to post reply' });
     }
 };
@@ -160,7 +160,7 @@ const updateReview = async (req, res) => {
 
         res.json(review);
     } catch (error) { 
-        console.error("Error updating review:", error);
+
         res.status(500).json({ error: 'Failed to update review' }); 
     }
 };
@@ -177,7 +177,7 @@ const deleteReview = async (req, res) => {
 
         res.json({ message: 'Review deleted successfully' });
     } catch (error) { 
-        console.error("Error deleting review:", error);
+
         res.status(500).json({ error: 'Failed to delete review' }); 
     }
 };
@@ -202,7 +202,7 @@ const deleteReply = async (req, res) => {
 
         res.json({ message: "Host reply deleted successfully." });
     } catch (error) {
-        console.error("Error deleting host reply:", error);
+
         res.status(500).json({ error: 'Failed to delete reply' });
     }
 };

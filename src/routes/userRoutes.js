@@ -28,10 +28,10 @@ router.post('/delete-request', requireAuth, async (req, res) => {
              return res.status(400).json({ error: "You have already submitted a delete request." });
         }
         await User.findByIdAndUpdate(req.user.uid, { $set: { deleteRequested: true } });
-        console.log(`Delete account request from user ${req.user.uid}`);
+
         res.status(200).json({ success: true, message: "Deletion request received and pending admin approval." });
     } catch (error) {
-        console.error("Delete request error:", error);
+
         res.status(500).json({ error: "Failed to process delete request." });
     }
 });

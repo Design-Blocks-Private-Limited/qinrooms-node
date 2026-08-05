@@ -28,7 +28,7 @@ const requireAuth = async (req, res, next) => {
         
         next(); // Proceed to the actual route
     } catch (error) {
-        console.error('Auth Error:', error);
+
         res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
 };
@@ -49,7 +49,7 @@ const requireAdmin = async (req, res, next) => {
 
         next(); // They have the master key! Proceed to the route.
     } catch (error) {
-        console.error('Admin Auth Error:', error);
+
         res.status(500).json({ error: 'Server error checking admin privileges' });
     }
 };

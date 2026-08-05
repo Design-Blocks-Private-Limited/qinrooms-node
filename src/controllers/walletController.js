@@ -24,7 +24,7 @@ const getWalletData = async (req, res) => {
             }))
         });
     } catch (error) {
-        console.error("Wallet data fetch error:", error);
+
         res.status(500).json({ error: 'Failed to fetch wallet data' });
     }
 };
@@ -86,7 +86,7 @@ const requestWithdrawal = async (req, res) => {
         res.status(201).json({ message: 'Withdrawal requested successfully', newBalance: 0 });
     } catch (error) {
         await session.abortTransaction();
-        console.error("Withdrawal error:", error);
+
         res.status(400).json({ error: error.message || 'Failed to request withdrawal' });
     } finally {
         session.endSession();
@@ -100,7 +100,7 @@ const getBankDetails = async (req, res) => {
         
         res.json(user.bankDetails || null);
     } catch (error) {
-        console.error("Get bank details error:", error);
+
         res.status(500).json({ error: 'Failed to fetch bank details' });
     }
 };
@@ -129,7 +129,7 @@ const updateBankDetails = async (req, res) => {
         
         res.json(user.bankDetails);
     } catch (error) {
-        console.error("Update bank details error:", error);
+
         res.status(500).json({ error: 'Failed to update bank details' });
     }
 };
@@ -183,7 +183,7 @@ const getTransactionDetails = async (req, res) => {
         
         res.json(details);
     } catch (error) {
-        console.error("Transaction details error:", error);
+
         res.status(500).json({ error: 'Failed to fetch transaction details' });
     }
 };

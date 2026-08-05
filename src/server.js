@@ -57,22 +57,22 @@ global.io = io;
 // ✅ HANDLE SOCKET CONNECTIONS
 
 io.on("connection", (socket) => {
-  console.log("⚡ A user connected:", socket.id);
+
 
   // When a user opens a chat screen, they join a specific "room"
 
   socket.on("join_chat", (chatId) => {
     socket.join(chatId);
-    console.log(`👤 User joined chat room: ${chatId}`);
+
   });
 
   socket.on("join_user", (userId) => {
     socket.join(userId);
-    console.log(`👤 User joined personal room: ${userId}`);
+
   });
 
   socket.on("disconnect", () => {
-    console.log("🔴 User disconnected");
+
   });
 });
 
@@ -126,5 +126,5 @@ const { startCronJobs } = require('./utils/cronJobs');
 startCronJobs();
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+
 });

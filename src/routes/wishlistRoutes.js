@@ -58,7 +58,7 @@ router.post('/sync', requireAuth, async (req, res) => {
 
         res.status(200).json({ success: true, message: "Wishlists synced successfully" });
     } catch (error) {
-        console.error("Sync error:", error);
+
         res.status(500).json({ error: 'Failed to sync wishlists' });
     }
 });

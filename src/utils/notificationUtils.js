@@ -27,8 +27,8 @@ const sendNotification = async ({ userId, title, body, type = 'system', relatedI
         
         // 3. If they have a push token, send it to Expo's servers!
         if (user && user.pushToken) {
-            console.log(`📡 Sending physical push to Expo for ${user.name || 'User'}...`);
-            console.log(`   -> Target Token: ${user.pushToken}`);
+
+
 
             const message = {
                 to: user.pushToken,
@@ -51,15 +51,15 @@ const sendNotification = async ({ userId, title, body, type = 'system', relatedI
 
             // Read the exact receipt from Expo
             const receipt = await response.json();
-            console.log("📨 Expo Server Response:", JSON.stringify(receipt, null, 2));
+
 
         } else {
-            console.log(`🔕 User ${userId} does not have a pushToken saved. Skipping physical push.`);
+
         }
         
         return newNotification;
     } catch (error) {
-        console.error("❌ Error in sendNotification util:", error);
+
     }
 };
 
