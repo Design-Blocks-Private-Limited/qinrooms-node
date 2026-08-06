@@ -67,6 +67,12 @@ router.post('/sync', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
     try {
         const { name, item } = req.body;
+
+        const existingList = await Wishlist.findOne({ userId: req.user.uid, name: name });
+        if (existingList) {
+            return res.status(400).json({ error: 'A wishlist with this name already exists' });
+        }
+
         const newWishlist = new Wishlist({
             userId: req.user.uid,
             name: name,

@@ -118,4 +118,35 @@ router.patch('/rate', requireAuth, async (req, res) => {
     }
 });
 
+// 4. REOPEN TICKET
+router.patch('/reopen', requireAuth, async (req, res) => {
+    try {
+        let ticket = await SupportTicket.findOne({ userId: req.user.uid }).sort({ createdAt: -1 });
+        if (ticket && ticket.status === 'resolved') {
+            ticket.status = 'open';
+            ticket.rating = null;
+            ticket.messages.push({
+                sender: 'system',
+                text: 'The ticket has been opened for an issue. The executive will contact you soon.',
+                timestamp: new Date()
+            });
+            await ticket.save();
+
+            try {
+                const io = req.app.get('io');
+                const roomName = `support_${ticket._id}`;
+                const sysMsg = ticket.messages[ticket.messages.length - 1];
+                io.to(roomName).emit('receive_support_message', { ticketId: ticket._id, message: sysMsg });
+                io.to('support_admins').emit('receive_support_message', { ticketId: ticket._id, message: sysMsg });
+            } catch (socketError) { }
+            
+            res.json(ticket);
+        } else {
+            res.status(400).json({ error: 'No resolved ticket found to reopen.' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reopen ticket.' });
+    }
+});
+
 module.exports = router;
