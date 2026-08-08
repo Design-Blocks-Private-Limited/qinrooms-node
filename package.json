@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "build:admin": "cd client-admin && npm install && npm run build",
+    "build:host": "cd client-host && npm install && npm run build",
+    "build": "npm run build:admin && npm run build:host",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

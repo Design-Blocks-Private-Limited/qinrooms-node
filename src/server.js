@@ -80,7 +80,10 @@ io.on("connection", (socket) => {
 app.use(cors());
 app.disable('etag');
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 app.use(morgan("dev")); // Keep console logging
 app.use(morgan("combined", { stream: logStream })); // Add file logging
@@ -115,6 +118,18 @@ app.use("/api/wallet", require("./routes/walletRoutes")); // ✅ MOUNT WALLET RO
 // ✅ MOUNT ADMIN ROUTES (Protected by middleware)
 
 app.use("/api/admin", adminRoutes);
+
+// ✅ SERVE ADMIN PORTAL
+app.use("/admin", express.static(path.join(__dirname, "../public/admin")));
+app.use("/admin", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/admin/index.html"));
+});
+
+// ✅ SERVE HOST PORTAL
+app.use("/host", express.static(path.join(__dirname, "../public/host")));
+app.use("/host", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/host/index.html"));
+});
 
 app.get("/", (req, res) => {
   res.send("QIN Backend API is running!");
