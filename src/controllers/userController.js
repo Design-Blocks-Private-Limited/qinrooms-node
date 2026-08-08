@@ -272,7 +272,7 @@ const requestOTP = async (req, res) => {
             const params = new URLSearchParams();
             if (exotelSenderId) params.append('From', exotelSenderId);
             params.append('To', formattedPhone);
-            params.append('Body', `QIN: Your booking OTP is ${otpCode} Use this to confirm your ride. OTP valid for 10 minutes.`);
+            params.append('Body', `INRYDE: Your booking OTP is ${otpCode} Use this to confirm your ride. OTP valid for 10 minutes.`);
 
             // DLT Template & Entity ID for Indian Telecom Operators
             if (process.env.EXOTEL_DLT_ENTITY_ID) params.append('DltEntityId', process.env.EXOTEL_DLT_ENTITY_ID);
