@@ -255,7 +255,7 @@ const requestOTP = async (req, res) => {
 
         // Check if Exotel API keys are fully configured
         if (!exotelSid || !exotelApiKey || !exotelApiToken || exotelApiKey.trim() === '' || exotelApiToken.trim() === '') {
-
+            console.log("Exotel OTP Service: Missing credentials. Skipping Exotel API call.");
             return res.status(200).json({ 
                 success: true,
                 message: "OTP generated. (Check backend console for code or use 123456)" 
@@ -278,6 +278,8 @@ const requestOTP = async (req, res) => {
             if (process.env.EXOTEL_DLT_ENTITY_ID) params.append('DltEntityId', process.env.EXOTEL_DLT_ENTITY_ID);
             if (process.env.EXOTEL_DLT_TEMPLATE_ID) params.append('DltTemplateId', process.env.EXOTEL_DLT_TEMPLATE_ID);
 
+            console.log("Exotel OTP Service: Sending request to", exotelUrl);
+            console.log("Exotel OTP Service: Params", params.toString());
             const response = await fetch(exotelUrl, {
                 method: 'POST',
                 headers: {
@@ -288,8 +290,10 @@ const requestOTP = async (req, res) => {
             });
 
             const data = await response.json();
+            console.log("Exotel OTP Service: Response status:", response.status);
+            console.log("Exotel OTP Service: Response data:", JSON.stringify(data));
             if (!response.ok || data.RestException) {
-
+                console.error("Exotel OTP Service Error:", data.RestException || "Unknown error");
 
                 return res.status(200).json({ 
                     success: true,
@@ -303,7 +307,7 @@ const requestOTP = async (req, res) => {
                 message: 'OTP sent successfully via SMS.'
             });
         } catch (smsErr) {
-
+            console.error("Exotel OTP Service Exception:", smsErr);
 
             return res.status(200).json({ 
                 success: true,
