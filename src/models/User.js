@@ -15,6 +15,11 @@ const UserSchema = new mongoose.Schema({
     // ✅ Host Verification
     verificationStatus: { type: String, enum: ['unverified', 'pending', 'verified', 'rejected'], default: 'unverified' },
     idDocumentUrl: { type: String, default: null },
+    idType: { type: String, default: 'Aadhaar' },
+    idNumber: { type: String, default: null },
+    idCardFront: { type: String, default: null },
+    idCardBack: { type: String, default: null },
+    rejectionReason: { type: String, default: null },
     
     // ✅ Account Deletion Request
     deleteRequested: { type: Boolean, default: false },

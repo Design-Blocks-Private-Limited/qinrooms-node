@@ -4,15 +4,51 @@ const Listing = require('../models/Listing');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const Message = require('../models/Message');
+const WalkInGuest = require('../models/WalkInGuest');
 const { sendNotification } = require('../utils/notificationUtils');
 const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
 // --- HELPERS ---
-// ✅ NEW: Explicitly add 5 hours and 30 minutes (IST) to the incoming UTC timestamp
 const getISTTime = (date) => {
     const d = new Date(date);
     d.setMinutes(d.getMinutes() + 330); // 330 minutes = 5.5 hours
     return d;
+};
+
+// Helper to parse checkout Date + Time (e.g. "2026-08-11" and "07:00 AM" / "08:00 AM" / "11:00 AM")
+const isCheckOutOverdue = (checkOutDate, checkOutTime, now = new Date()) => {
+    if (!checkOutDate) return false;
+
+    let year, month, day;
+    if (typeof checkOutDate === 'string' && checkOutDate.length >= 10) {
+        const parts = checkOutDate.slice(0, 10).split('-');
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        day = parseInt(parts[2], 10);
+    } else {
+        const d = new Date(checkOutDate);
+        if (isNaN(d.getTime())) return false;
+        year = d.getFullYear();
+        month = d.getMonth();
+        day = d.getDate();
+    }
+
+    let hour = 7; // Default 07:00 AM checkout
+    let minute = 0;
+
+    if (checkOutTime && typeof checkOutTime === 'string') {
+        const match = checkOutTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (match) {
+            hour = parseInt(match[1], 10);
+            minute = parseInt(match[2], 10);
+            const ampm = match[3] ? match[3].toUpperCase() : null;
+            if (ampm === 'PM' && hour < 12) hour += 12;
+            if (ampm === 'AM' && hour === 12) hour = 0;
+        }
+    }
+
+    const checkOutDateTime = new Date(year, month, day, hour, minute, 0, 0);
+    return now >= checkOutDateTime;
 };
 
 // Formats the adjusted date into YYYY-MM-DD
@@ -23,26 +59,52 @@ const toDateId = (adjustedDate) => {
     return `${year}-${month}-${day}`;
 };
 
-
 // 1. FETCH ACTIVE AND UPCOMING RESERVATIONS FOR THE HOST
 const getHostReservations = async (req, res) => {
     try {
-        const { page, limit, skip } = getPaginationParams(req.query);
+        const now = new Date();
+
+        // Fetch host listings to map checkOutTime
+        const hostListings = await Listing.find({ hostId: req.user.uid });
+        const listingMap = {};
+        hostListings.forEach(l => {
+            listingMap[l._id.toString()] = l;
+        });
+
         const filter = {
             hostId: req.user.uid,
             status: { $in: ['upcoming', 'active'] }
         };
 
-        const total = await Booking.countDocuments(filter);
-        const bookings = await Booking.find(filter)
-            .sort({ checkInDate: 1 })
-            .skip(skip)
-            .limit(limit);
+        const bookings = await Booking.find(filter).sort({ checkInDate: 1 });
 
-        const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
-        res.json(formatPaginatedResponse(formatted, total, page, limit));
+        const formatted = [];
+        for (const b of bookings) {
+            const prop = listingMap[b.listingId?.toString()] || {};
+            const checkInTime = b.checkInTime || prop.checkInTime || '08:00 AM';
+            const checkOutTime = b.checkOutTime || prop.checkOutTime || '07:00 AM';
+
+            let currentStatus = b.status;
+            // Check if checkout time has passed
+            if (isCheckOutOverdue(b.checkOutDate, checkOutTime, now) && currentStatus !== 'cancelled') {
+                currentStatus = 'completed';
+                // Auto-update DB asynchronously
+                Booking.findByIdAndUpdate(b._id, { $set: { status: 'completed' } }).catch(console.error);
+            }
+
+            formatted.push({
+                id: b._id,
+                ...b._doc,
+                status: currentStatus,
+                checkInTime,
+                checkOutTime,
+                location: b.location || prop.location || ''
+            });
+        }
+
+        res.json(formatted);
     } catch (error) {
-
+        console.error("Failed to fetch host reservations:", error);
         res.status(500).json({ error: 'Failed to fetch reservations' });
     }
 };
@@ -321,6 +383,29 @@ const createBooking = async (req, res) => {
         await newBooking.save({ session });
         await Listing.findByIdAndUpdate(listingId, { $set: updates }, { session });
 
+        // Save or update guest in host's WalkInGuest collection
+        if (req.body.bookerPhone && req.body.bookerName) {
+            const hostTargetId = req.body.hostId || req.user.uid;
+            await WalkInGuest.findOneAndUpdate(
+                { hostId: hostTargetId, bookerPhone: req.body.bookerPhone },
+                {
+                    $set: {
+                        hostId: hostTargetId,
+                        listingId: req.body.listingId,
+                        bookerName: req.body.bookerName,
+                        bookerEmail: req.body.bookerEmail || '',
+                        bookerPhone: req.body.bookerPhone,
+                        guestIdType: req.body.guestIdType || 'Aadhaar',
+                        guestIdNumber: req.body.guestIdNumber || '',
+                        guestIdImage: req.body.guestIdImage || '',
+                        lastStayDate: new Date()
+                    },
+                    $inc: { visitCount: 1 }
+                },
+                { upsert: true, new: true, session }
+            );
+        }
+
         // Initialize Chat for Homes/Barns
         if (type !== 'hotel' && type !== 'dorm') {
             const chatId = [req.user.uid, req.body.hostId].sort().join('_');
@@ -384,39 +469,45 @@ const searchGuest = async (req, res) => {
             return res.status(400).json({ error: "Provide a phone number or email to search." });
         }
 
-        // 1. Search registered users first
-        let query = {};
-        if (phone) query.phoneNumber = phone;
-        else if (email) query.email = email;
+        const hostId = req.user.uid;
 
-        const user = await User.findOne(query);
-        if (user) {
-            return res.json({
-                bookerName: user.name,
-                bookerEmail: user.email,
-                bookerPhone: user.phoneNumber,
-                found: true,
-                type: 'registered'
-            });
-        }
-
-        // 2. Search past bookings of this host
-        const bookingQuery = { hostId: req.user.uid };
+        // 1. Search host's WalkInGuest collection specifically (DO NOT search mobile app users)
+        let query = { hostId };
         if (phone) {
-            bookingQuery.bookerPhone = phone;
+            query.bookerPhone = phone;
         } else if (email) {
-            bookingQuery.bookerEmail = email;
+            query.bookerEmail = email;
         }
 
-        const latestBooking = await Booking.findOne(bookingQuery).sort({ createdAt: -1 });
-        if (latestBooking) {
+        let guest = await WalkInGuest.findOne(query).sort({ updatedAt: -1 });
+
+        // 2. Fallback: Search previous walk-in bookings for this host if WalkInGuest record does not exist yet
+        if (!guest) {
+            const bookingQuery = { hostId };
+            if (phone) bookingQuery.bookerPhone = phone;
+            else if (email) bookingQuery.bookerEmail = email;
+
+            const latestBooking = await Booking.findOne(bookingQuery).sort({ createdAt: -1 });
+            if (latestBooking && latestBooking.bookerName) {
+                guest = {
+                    bookerName: latestBooking.bookerName,
+                    bookerEmail: latestBooking.bookerEmail || '',
+                    bookerPhone: latestBooking.bookerPhone || phone,
+                    guestIdType: latestBooking.guestIdType || 'Aadhaar',
+                    guestIdNumber: latestBooking.guestIdNumber || '',
+                    guestIdImage: latestBooking.guestIdImage || ''
+                };
+            }
+        }
+
+        if (guest) {
             return res.json({
-                bookerName: latestBooking.bookerName,
-                bookerEmail: latestBooking.bookerEmail,
-                bookerPhone: latestBooking.bookerPhone || phone,
-                guestIdType: latestBooking.guestIdType || '',
-                guestIdNumber: latestBooking.guestIdNumber || '',
-                guestIdImage: latestBooking.guestIdImage || '',
+                bookerName: guest.bookerName,
+                bookerEmail: guest.bookerEmail || '',
+                bookerPhone: guest.bookerPhone || phone,
+                guestIdType: guest.guestIdType || 'Aadhaar',
+                guestIdNumber: guest.guestIdNumber || '',
+                guestIdImage: guest.guestIdImage || '',
                 found: true,
                 type: 'walk-in'
             });
@@ -424,17 +515,142 @@ const searchGuest = async (req, res) => {
 
         res.json({ found: false });
     } catch (error) {
-
+        console.error("Failed to search walk-in guest details:", error);
         res.status(500).json({ error: "Failed to search guest details" });
+    }
+};
+
+// 8. FETCH ALL BOOKINGS & REPORTS FOR HOST (DAILY, MONTHLY, ALL TIME)
+const getAllHostBookings = async (req, res) => {
+    try {
+        const { timeRange, date, month, year, listingId } = req.query;
+        let filter = { hostId: req.user.uid };
+
+        if (listingId && listingId !== 'all') {
+            filter.listingId = listingId;
+        }
+
+        const hostListings = await Listing.find({ hostId: req.user.uid });
+        const listingMap = {};
+        hostListings.forEach(l => {
+            listingMap[l._id.toString()] = l;
+        });
+
+        const now = new Date();
+        const bookings = await Booking.find(filter).sort({ createdAt: -1 });
+        let formatted = bookings.map(b => {
+            const prop = listingMap[b.listingId?.toString()] || {};
+            const checkInTime = b.checkInTime || prop.checkInTime || '08:00 AM';
+            const checkOutTime = b.checkOutTime || prop.checkOutTime || '07:00 AM';
+
+            let currentStatus = b.status;
+            if (isCheckOutOverdue(b.checkOutDate, checkOutTime, now) && currentStatus !== 'cancelled') {
+                currentStatus = 'completed';
+                Booking.findByIdAndUpdate(b._id, { $set: { status: 'completed' } }).catch(console.error);
+            }
+
+            return {
+                id: b._id,
+                ...b._doc,
+                status: currentStatus,
+                checkInTime,
+                checkOutTime,
+                location: b.location || prop.location || ''
+            };
+        });
+
+        // Filter in JavaScript to support both String & Date object schemas cleanly
+        if (timeRange === 'daily' && date) {
+            formatted = formatted.filter(b => {
+                if (!b.checkInDate) return false;
+                const dStr = typeof b.checkInDate === 'string' 
+                    ? b.checkInDate.slice(0, 10) 
+                    : new Date(b.checkInDate).toISOString().slice(0, 10);
+                return dStr === date;
+            });
+        } else if (timeRange === 'monthly' && month && year) {
+            const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+            formatted = formatted.filter(b => {
+                if (!b.checkInDate) return false;
+                const dStr = typeof b.checkInDate === 'string' 
+                    ? b.checkInDate.slice(0, 7) 
+                    : new Date(b.checkInDate).toISOString().slice(0, 7);
+                return dStr === targetMonthStr;
+            });
+        }
+
+        let totalRevenue = 0;
+        let activeCount = 0;
+        let completedCount = 0;
+        let cancelledCount = 0;
+
+        formatted.forEach(b => {
+            if (b.status !== 'cancelled') {
+                totalRevenue += (Number(b.totalPrice) || 0);
+            }
+            if (b.status === 'active' || b.status === 'upcoming') activeCount++;
+            else if (b.status === 'completed' || b.status === 'checked-out' || b.status === 'checkedout') completedCount++;
+            else if (b.status === 'cancelled') cancelledCount++;
+        });
+
+        res.json({
+            bookings: formatted,
+            summary: {
+                totalBookings: formatted.length,
+                totalRevenue,
+                activeCount,
+                completedCount,
+                cancelledCount
+            }
+        });
+    } catch (error) {
+        console.error("Failed to fetch all host bookings:", error);
+        res.status(500).json({ error: "Failed to fetch booking reports" });
+    }
+};
+
+// 9. HOST MANUAL CHECK-IN
+const checkInBooking = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+        booking.status = 'active';
+        booking.checkInConfirmed = true;
+        booking.checkedInAt = new Date();
+        await booking.save();
+
+        res.json({ success: true, message: 'Guest checked in successfully', booking });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to check in guest' });
+    }
+};
+
+// 10. HOST MANUAL CHECK-OUT
+const checkOutBooking = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+        booking.status = 'completed';
+        booking.checkedOutAt = new Date();
+        await booking.save();
+
+        res.json({ success: true, message: 'Guest checked out successfully', booking });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to check out guest' });
     }
 };
 
 module.exports = {
     getHostReservations,
+    getAllHostBookings,
     getMyTrips,
     getBookingById,
     cancelBooking,
     updateBooking,
     createBooking,
-    searchGuest
+    searchGuest,
+    checkInBooking,
+    checkOutBooking
 };

@@ -78,16 +78,34 @@ router.get('/', async (req, res) => {
 // GET all listings for the logged-in Host
 router.get('/my-host-listings', requireAuth, async (req, res) => {
     try {
-        const query = { hostId: req.user.uid };
+        const user = await User.findById(req.user.uid);
+        const cleanPhone = user?.phoneNumber ? user.phoneNumber.replace(/[^0-9]/g, '') : null;
+
+        const orConditions = [{ hostId: req.user.uid }];
+        if (cleanPhone) {
+            orConditions.push({ assignedPhoneNumber: cleanPhone });
+        }
+
+        const query = { $or: orConditions };
         if (req.query.type) {
             query.type = req.query.type;
+        }
+
+        // Auto-link assigned listings to this user
+        if (cleanPhone) {
+            await Listing.updateMany(
+                { assignedPhoneNumber: cleanPhone, hostId: { $ne: req.user.uid } },
+                { $set: { hostId: req.user.uid, hostName: user.name || `User ${cleanPhone.slice(-4)}`, status: 'active' } }
+            );
+            if (user && !user.isHost) {
+                await User.findByIdAndUpdate(req.user.uid, { $set: { isHost: true } });
+            }
         }
 
         const listings = await Listing.find(query).sort({ createdAt: -1 });
         const formattedListings = listings.map(l => ({ id: l._id, ...l._doc }));
         res.json(formattedListings);
     } catch (error) {
-
         res.status(500).json({ error: 'Failed to fetch your listings' });
     }
 });
@@ -114,40 +132,59 @@ router.get('/:id', async (req, res) => {
 // POST a new listing
 router.post('/', requireAuth, async (req, res) => {
     try {
+        const user = await User.findById(req.user.uid);
+        const isAdmin = user && user.isAdmin;
         const listingData = req.body;
         
-        // Ensure the hostId is securely attached based on the token, not the frontend body
+        // Non-admin host listings ALWAYS default to 'pending' for Admin approval
+        const initialStatus = isAdmin ? (listingData.status || 'active') : 'pending';
+
         const newListing = new Listing({
             ...listingData,
             hostId: req.user.uid, 
+            status: initialStatus,
+            rejectionReason: '',
             createdAt: new Date()
         });
 
         await newListing.save();
         res.status(201).json({ id: newListing._id, ...newListing._doc });
     } catch (error) {
-
         res.status(500).json({ error: 'Failed to create listing' });
     }
 });
 
-// ✅ UPDATED PATCH: Update specific fields of a listing
+// ✅ UPDATED PATCH: Update specific fields of a listing (Resubmit flow)
 router.patch('/:id', requireAuth, async (req, res) => {
     try {
-        // 1. Check if the user making the request is an Admin
         const user = await User.findById(req.user.uid);
         const isAdmin = user && user.isAdmin;
 
-        // 2. Build the query safely
         const query = { _id: req.params.id };
         if (!isAdmin) {
-            // If they are NOT an Admin, enforce the lock
             query.hostId = req.user.uid; 
+        }
+
+        const updateData = { ...req.body };
+
+        // Non-admin hosts CANNOT bypass admin approval to set status directly to 'active'
+        if (!isAdmin) {
+            if (updateData.status === 'active') {
+                updateData.status = 'pending';
+            }
+            const existing = await Listing.findOne(query);
+            if (existing) {
+                // If listing was rejected, or if host resubmits, reset rejection & set status to pending
+                if (existing.status === 'rejected') {
+                    updateData.status = 'pending';
+                    updateData.rejectionReason = '';
+                }
+            }
         }
 
         const listing = await Listing.findOneAndUpdate(
             query,
-            { $set: req.body }, 
+            { $set: updateData }, 
             { new: true }
         );
 

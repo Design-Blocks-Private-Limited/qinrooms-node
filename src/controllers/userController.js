@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Otp = require('../models/Otp');
+const Listing = require('../models/Listing');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -205,19 +206,37 @@ const loginUser = async (req, res) => {
 // --- 7. SUBMIT HOST VERIFICATION ---
 const submitVerification = async (req, res) => {
     try {
-        const { idDocumentUrl } = req.body;
-        if (!idDocumentUrl) return res.status(400).json({ error: 'ID document URL is required.' });
+        const { idDocumentUrl, idType, idNumber, idCardFront, idCardBack } = req.body;
+        if (!idNumber || !idNumber.trim()) {
+            return res.status(400).json({ error: 'Government ID Number is required.' });
+        }
+        if (!idDocumentUrl && !idCardFront) {
+            return res.status(400).json({ error: 'Government ID document image is required.' });
+        }
+
+        const updateData = {
+            verificationStatus: 'pending',
+            idType: idType || 'Aadhaar',
+            idNumber: idNumber.trim(),
+            idCardFront: idCardFront || idDocumentUrl || '',
+            idCardBack: idCardBack || '',
+            idDocumentUrl: idDocumentUrl || idCardFront || ''
+        };
 
         const updatedUser = await User.findByIdAndUpdate(
             req.user.uid,
-            { $set: { idDocumentUrl, verificationStatus: 'pending' } },
-            { new: true }
+            { $set: updateData },
+            { new: true, returnDocument: 'after' }
         );
 
-        res.status(200).json(updatedUser);
+        res.status(200).json({
+            success: true,
+            message: 'Verification submitted successfully and is pending admin review.',
+            user: updatedUser
+        });
     } catch (error) {
-
-        res.status(500).json({ error: 'Failed to submit verification' });
+        console.error("Error submitting verification:", error);
+        res.status(500).json({ error: 'Failed to submit verification request.' });
     }
 };
 
@@ -357,6 +376,19 @@ const verifyOTP = async (req, res) => {
             await user.save();
         }
 
+        // Check if any listings were assigned to this phone number by Admin
+        const assignedListings = await Listing.find({ assignedPhoneNumber: cleanPhone });
+        if (assignedListings.length > 0) {
+            await Listing.updateMany(
+                { assignedPhoneNumber: cleanPhone },
+                { $set: { hostId: user._id.toString(), hostName: user.name || `User ${cleanPhone.slice(-4)}`, status: 'active' } }
+            );
+            if (!user.isHost) {
+                user.isHost = true;
+                await user.save();
+            }
+        }
+
         // Sign 30-day JWT Token
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret_qin_jwt_key_2026', { expiresIn: '30d' });
 
@@ -380,6 +412,34 @@ const verifyOTP = async (req, res) => {
     }
 };
 
+// --- RESET HOST VERIFICATION FOR TESTING / RE-SUBMISSION ---
+const resetVerification = async (req, res) => {
+    try {
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user.uid,
+            { 
+                $set: { 
+                    verificationStatus: 'unverified',
+                    idDocumentUrl: null,
+                    idNumber: null,
+                    idCardFront: null,
+                    idCardBack: null,
+                    rejectionReason: null
+                } 
+            },
+            { new: true, returnDocument: 'after' }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Verification status reset to unverified.',
+            user: updatedUser
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reset verification status' });
+    }
+};
+
 module.exports = { 
     getMyProfile, 
     updateMyProfile, 
@@ -388,6 +448,7 @@ module.exports = {
     signupUser,
     loginUser,
     submitVerification,
+    resetVerification,
     requestOTP,
     verifyOTP
 };

@@ -16,6 +16,41 @@ const { requireAuth, requireAdmin } = require('../middlewares/authMiddleware');
 router.use(requireAuth);
 router.use(requireAdmin);
 
+// ✅ 0. SEND OTP FOR ADMIN DELETE VERIFICATION
+router.post('/send-delete-otp', async (req, res) => {
+    try {
+        const generatedOtp = '1234'; 
+        const adminId = req.user ? (req.user.uid || req.user.id) : null;
+
+        if (adminId && require('mongoose').Types.ObjectId.isValid(adminId)) {
+            await User.findByIdAndUpdate(adminId, {
+                $set: {
+                    deleteOtp: generatedOtp,
+                    deleteOtpExpires: new Date(Date.now() + 5 * 60 * 1000)
+                }
+            });
+        }
+
+        console.log(`[SECURITY OTP] Admin Delete OTP generated: ${generatedOtp}`);
+        res.json({ success: true, message: 'Security OTP sent for deletion verification. (Code: 1234)', otp: generatedOtp });
+    } catch (error) {
+        console.error("Failed to send delete OTP:", error);
+        res.status(500).json({ error: 'Failed to send Security OTP' });
+    }
+});
+
+const verifyAdminDeleteOtp = async (adminId, providedOtp) => {
+    if (!providedOtp) return false;
+    if (providedOtp.trim() === '1234') return true; // Dev test OTP
+    if (adminId && require('mongoose').Types.ObjectId.isValid(adminId)) {
+        const admin = await User.findById(adminId);
+        if (admin && admin.deleteOtp && admin.deleteOtp === providedOtp.trim() && admin.deleteOtpExpires > new Date()) {
+            return true;
+        }
+    }
+    return false;
+};
+
 // 1. GET ALL USERS (Guests, Hosts, Admins)
 router.get('/users', async (req, res) => {
     try {
@@ -57,9 +92,118 @@ router.get('/listings', async (req, res) => {
     }
 });
 
-// ✅ 2.5 ADDED THIS MISSING ROUTE: DELETE LISTING
+// 2.1 CREATE NEW LISTING (Admin Flow)
+router.post('/listings', async (req, res) => {
+    try {
+        const listingData = req.body;
+        let hostId = req.user ? (req.user.uid || req.user.id) : 'admin_host';
+        let hostName = (req.user && req.user.name) || 'Admin Host';
+        let assignedPhoneNumber = null;
+
+        if (listingData.assignedPhoneNumber) {
+            const cleanPhone = listingData.assignedPhoneNumber.replace(/[^0-9]/g, '');
+            assignedPhoneNumber = cleanPhone;
+            const targetUser = await User.findOne({ phoneNumber: cleanPhone });
+            if (targetUser) {
+                hostId = targetUser._id.toString();
+                hostName = targetUser.name || `User ${cleanPhone.slice(-4)}`;
+                targetUser.isHost = true;
+                targetUser.verificationStatus = 'verified';
+                await targetUser.save();
+            }
+        }
+
+        const newListing = new Listing({
+            ...listingData,
+            hostId,
+            hostName: listingData.hostName || hostName,
+            assignedPhoneNumber,
+            status: listingData.status || 'active',
+            createdAt: new Date()
+        });
+
+        await newListing.save();
+        res.status(201).json({ id: newListing._id, ...newListing._doc });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create listing: ' + error.message });
+    }
+});
+
+// 2.2 ASSIGN LISTING TO MOBILE NUMBER
+router.patch('/listings/:id/assign', async (req, res) => {
+    try {
+        const { phoneNumber } = req.body;
+        if (!phoneNumber) {
+            return res.status(400).json({ error: 'Mobile number is required' });
+        }
+
+        const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+        if (cleanPhone.length < 10) {
+            return res.status(400).json({ error: 'Invalid 10-digit mobile number' });
+        }
+
+        const listing = await Listing.findById(req.params.id);
+        if (!listing) return res.status(404).json({ error: 'Listing not found' });
+
+        listing.assignedPhoneNumber = cleanPhone;
+        listing.status = 'active';
+
+        const targetUser = await User.findOne({ phoneNumber: cleanPhone });
+        if (targetUser) {
+            listing.hostId = targetUser._id.toString();
+            listing.hostName = targetUser.name || `User ${cleanPhone.slice(-4)}`;
+            targetUser.isHost = true;
+            targetUser.verificationStatus = 'verified';
+            await targetUser.save();
+        }
+
+        await listing.save();
+        res.json({ success: true, message: `Listing assigned to ${cleanPhone}`, listing });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to assign listing' });
+    }
+});
+
+// ✅ 2.3 APPROVE / REJECT LISTING STATUS & REJECTION REASON
+router.patch('/listings/:id/status', async (req, res) => {
+    try {
+        const { status, rejectionReason } = req.body;
+        if (!['active', 'approved', 'rejected', 'pending', 'unlisted'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid listing status' });
+        }
+
+        const normalizedStatus = status === 'approved' ? 'active' : status;
+        const updateFields = {
+            status: normalizedStatus,
+            rejectionReason: normalizedStatus === 'rejected' ? (rejectionReason || 'Listing requires corrections before approval.') : ''
+        };
+
+        const updatedListing = await Listing.findByIdAndUpdate(
+            req.params.id,
+            { $set: updateFields },
+            { new: true }
+        );
+
+        if (!updatedListing) {
+            return res.status(404).json({ error: 'Listing not found' });
+        }
+
+        res.json({ success: true, message: `Listing status updated to ${normalizedStatus}`, listing: updatedListing });
+    } catch (error) {
+        console.error("Failed to update listing status:", error);
+        res.status(500).json({ error: 'Failed to update listing status' });
+    }
+});
+
+// ✅ 2.5 DELETE LISTING (Requires OTP)
 router.delete('/listings/:id', async (req, res) => {
     try {
+        const otp = req.headers['x-admin-otp'] || req.body?.otp || req.query?.otp;
+        const isValidOtp = await verifyAdminDeleteOtp(req.user?.uid || req.user?.id, otp);
+        if (!isValidOtp) {
+            return res.status(400).json({ error: 'Invalid or expired Security OTP. Enter 1234 to confirm deletion.' });
+        }
+
         const deletedListing = await Listing.findByIdAndDelete(req.params.id);
         
         if (!deletedListing) {
@@ -68,8 +212,7 @@ router.delete('/listings/:id', async (req, res) => {
 
         res.json({ success: true, message: 'Property permanently deleted.' });
     } catch (error) {
-
-        res.status(500).json({ error: 'Failed to delete listing from server' });
+        res.status(500).json({ error: 'Failed to delete listing from server: ' + error.message });
     }
 });
 
@@ -77,7 +220,23 @@ router.delete('/listings/:id', async (req, res) => {
 router.get('/bookings', async (req, res) => {
     try {
         const bookings = await Booking.find().sort({ createdAt: -1 });
-        res.json(bookings);
+        const listings = await Listing.find();
+        const listingMap = {};
+        listings.forEach(l => {
+            listingMap[l._id.toString()] = l;
+        });
+
+        const formatted = bookings.map(b => {
+            const prop = listingMap[b.listingId?.toString()] || {};
+            return {
+                id: b._id,
+                ...b._doc,
+                checkInTime: b.checkInTime || prop.checkInTime || '08:00 AM',
+                checkOutTime: b.checkOutTime || prop.checkOutTime || '07:00 AM'
+            };
+        });
+
+        res.json(formatted);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch bookings' });
     }
@@ -115,37 +274,81 @@ router.post('/bookings/:id/refund', async (req, res) => {
     }
 });
 
-// ✅ 3.6 APPROVE/REJECT HOST VERIFICATION
+// ✅ 3.6 APPROVE/REJECT/UNVERIFY HOST VERIFICATION & DELETE ID DOCUMENTS
 router.post('/users/:id/verify', async (req, res) => {
     try {
-        const { status } = req.body; // 'verified' or 'rejected'
-        if (!['verified', 'rejected'].includes(status)) {
+        const { status, wipeDocuments } = req.body;
+        if (!['verified', 'rejected', 'unverified'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
         
+        const updateDoc = { verificationStatus: status };
+        if (wipeDocuments || status === 'unverified') {
+            updateDoc.idCardFront = null;
+            updateDoc.idCardBack = null;
+            updateDoc.idDocumentUrl = null;
+            updateDoc.idType = null;
+            updateDoc.idNumber = null;
+            updateDoc.rejectionReason = null;
+        }
+
         const user = await User.findByIdAndUpdate(
             req.params.id,
-            { $set: { verificationStatus: status } },
+            { $set: updateDoc },
             { new: true }
         );
 
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json({ success: true, user });
     } catch (error) {
-
         res.status(500).json({ error: 'Failed to verify host' });
     }
 });
 
-// ✅ 4. UPDATE USER (Edit Name & Phone)
+router.delete('/users/:id/id-documents', async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { 
+                $set: { 
+                    verificationStatus: 'unverified',
+                    idCardFront: null,
+                    idCardBack: null,
+                    idDocumentUrl: null,
+                    idType: null,
+                    idNumber: null,
+                    rejectionReason: null
+                } 
+            },
+            { new: true }
+        );
+
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json({ success: true, message: 'ID documents wiped and status reset to unverified.', user });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete ID documents' });
+    }
+});
+
+// ✅ 4. UPDATE USER / ADMIN (Edit Name, Email, Roles, Password)
 router.patch('/users/:id', async (req, res) => {
     try {
-        const { name, phoneNumber } = req.body;
-        
-        // Update only the specific fields provided
+        const { name, phoneNumber, email, isAdmin, isHost, password } = req.body;
+        const updateFields = {};
+
+        if (name !== undefined) updateFields.name = name;
+        if (phoneNumber !== undefined) updateFields.phoneNumber = phoneNumber;
+        if (email !== undefined) updateFields.email = email;
+        if (isAdmin !== undefined) updateFields.isAdmin = Boolean(isAdmin);
+        if (isHost !== undefined) updateFields.isHost = Boolean(isHost);
+
+        if (password) {
+            updateFields.password = await bcrypt.hash(password, 10);
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id, 
-            { $set: { name, phoneNumber } }, 
+            { $set: updateFields }, 
             { new: true }
         );
 
@@ -155,26 +358,28 @@ router.patch('/users/:id', async (req, res) => {
 
         res.json(updatedUser);
     } catch (error) {
-
-        res.status(500).json({ error: 'Failed to update user' });
+        console.error("Failed to update user/admin:", error);
+        res.status(500).json({ error: 'Failed to update user/admin details: ' + error.message });
     }
 });
 
-// ✅ 5. DELETE USER (Wipe from MongoDB, AND Delete their Listings)
+// ✅ 5. DELETE USER (Wipe from MongoDB AND Delete their Listings) (Requires OTP)
 router.delete('/users/:id', async (req, res) => {
     try {
         const userId = req.params.id;
+        const otp = req.headers['x-admin-otp'] || req.body?.otp || req.query?.otp;
 
-        // SAFEGUARD: Prevent admin from deleting themselves
-        if (req.user.uid === userId) {
+        const isValidOtp = await verifyAdminDeleteOtp(req.user?.uid || req.user?.id, otp);
+        if (!isValidOtp) {
+            return res.status(400).json({ error: 'Invalid or expired Security OTP. Enter 1234 to confirm deletion.' });
+        }
+
+        if (req.user?.uid === userId) {
             return res.status(403).json({ error: "Action Denied: You cannot delete your own Master Admin account." });
         }
 
-        // Step 1: Delete all Listings hosted by this user (Cascading Delete)
         const deletedListings = await Listing.deleteMany({ hostId: userId });
 
-
-        // Step 2: Delete the User from MongoDB
         let queryUserId = userId;
         if (require('mongoose').Types.ObjectId.isValid(queryUserId) && typeof queryUserId === 'string' && queryUserId.length === 24) {
             queryUserId = new (require('mongoose').Types.ObjectId)(queryUserId);
@@ -190,8 +395,7 @@ router.delete('/users/:id', async (req, res) => {
             message: `User and their ${deletedListings.deletedCount} listings completely wiped from system.` 
         });
     } catch (error) {
-
-        res.status(500).json({ error: 'Failed to completely delete user and their data' });
+        res.status(500).json({ error: 'Failed to completely delete user: ' + error.message });
     }
 });
 
@@ -253,9 +457,15 @@ router.patch('/bookings/:id', async (req, res) => {
     }
 });
 
-// ✅ 8. DELETE BOOKING (Completely wipe record from database)
+// ✅ 8. DELETE BOOKING (Completely wipe record from database) (Requires OTP)
 router.delete('/bookings/:id', async (req, res) => {
     try {
+        const otp = req.headers['x-admin-otp'] || req.body?.otp || req.query?.otp;
+        const isValidOtp = await verifyAdminDeleteOtp(req.user?.uid || req.user?.id, otp);
+        if (!isValidOtp) {
+            return res.status(400).json({ error: 'Invalid or expired Security OTP. Enter 1234 to confirm deletion.' });
+        }
+
         const deletedBooking = await Booking.findByIdAndDelete(req.params.id);
         
         if (!deletedBooking) {
@@ -265,7 +475,7 @@ router.delete('/bookings/:id', async (req, res) => {
         res.json({ success: true, message: 'Booking permanently deleted.' });
     } catch (error) {
 
-        res.status(500).json({ error: 'Failed to delete booking' });
+        res.status(500).json({ error: 'Failed to delete booking: ' + error.message });
     }
 });
 

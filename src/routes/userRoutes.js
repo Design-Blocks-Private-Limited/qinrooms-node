@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const { requireAuth } = require('../middlewares/authMiddleware');
-const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser, submitVerification, requestOTP, verifyOTP } = require('../controllers/userController');
+const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser, submitVerification, resetVerification, requestOTP, verifyOTP } = require('../controllers/userController');
 const User = require('../models/User'); 
 
 // Security: Rate limiting for auth routes (increased for dev testing)
@@ -14,12 +14,14 @@ const authLimiter = rateLimit({
 
 router.post('/signup', authLimiter, signupUser);
 router.post('/login', authLimiter, loginUser);
+router.post('/send-otp', authLimiter, requestOTP);
 router.post('/request-otp', authLimiter, requestOTP);
 router.post('/verify-otp', authLimiter, verifyOTP);
 
 router.get('/me', requireAuth, getMyProfile);
 router.patch('/me', requireAuth, updateMyProfile);
 router.post('/me/verify', requireAuth, submitVerification);
+router.post('/me/reset-verification', requireAuth, resetVerification);
 router.post('/register', requireAuth, registerUser);
 router.post('/delete-request', requireAuth, async (req, res) => {
     try {

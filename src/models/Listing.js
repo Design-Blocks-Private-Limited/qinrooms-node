@@ -4,6 +4,7 @@ const ListingSchema = new mongoose.Schema({
     hostId: { type: String, required: true, index: true },
     hostName: { type: String },
     hostImage: { type: String },
+    assignedPhoneNumber: { type: String, index: true },
     title: { type: String, required: true },
     description: { type: String },
     type: { type: String, enum: ['house', 'apartment', 'barn', 'hotel', 'dorm', 'pg'] },
@@ -13,8 +14,8 @@ const ListingSchema = new mongoose.Schema({
     latitude: { type: Number },
     longitude: { type: Number },
     images: [{ type: String }],
-    amenities: [{ type: String }],
-    status: { type: String, default: 'unlisted' },
+    status: { type: String, enum: ['active', 'pending', 'rejected', 'unlisted'], default: 'pending' },
+    rejectionReason: { type: String, default: '' },
     
     // ✅ NEW: Explicitly define these so MongoDB saves them!
     guests: { type: Number, default: 4 },
@@ -22,8 +23,8 @@ const ListingSchema = new mongoose.Schema({
     beds: { type: Number, default: 1 },
     bathrooms: { type: Number, default: 1 },
     
-    checkInTime: { type: String, default: '09:00 AM' },
-    checkOutTime: { type: String, default: '08:00 AM' },
+    checkInTime: { type: String, default: '08:00 AM' },
+    checkOutTime: { type: String, default: '07:00 AM' },
     
     minNights: { type: Number, default: 1 },
     inventoryCount: { type: Number, default: 1 },
