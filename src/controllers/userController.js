@@ -253,15 +253,47 @@ const requestOTP = async (req, res) => {
             return res.status(400).json({ error: 'Please enter a valid 10-digit phone number.' });
         }
 
+        // Rate limiting per phone number: Check existing OTP record
+        const existingOtpDoc = await Otp.findOne({ phoneNumber: cleanPhone });
+        const now = new Date();
+
+        if (existingOtpDoc) {
+            const lastRequested = new Date(existingOtpDoc.lastRequestedAt || existingOtpDoc.updatedAt || existingOtpDoc.createdAt);
+            const timeDiffSeconds = Math.floor((now.getTime() - lastRequested.getTime()) / 1000);
+
+            // 60-second minimum cooldown between requests
+            if (timeDiffSeconds < 60) {
+                const waitSeconds = 60 - timeDiffSeconds;
+                return res.status(429).json({
+                    error: `Please wait ${waitSeconds} second${waitSeconds > 1 ? 's' : ''} before requesting another OTP.`
+                });
+            }
+
+            // Max 5 OTP requests per hour per phone number
+            if (existingOtpDoc.requestCount >= 5) {
+                return res.status(429).json({
+                    error: 'Maximum OTP request limit reached for this phone number. Please try again after 1 hour.'
+                });
+            }
+        }
+
         // Generate dynamic random 4-digit OTP
         const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
 
-        // Save to MongoDB Otp model (auto-deletes after 10 mins)
-        await Otp.deleteMany({ phoneNumber: cleanPhone });
-        await Otp.create({
-            phoneNumber: cleanPhone,
-            otp: otpCode
-        });
+        // Update existing record or create new record with rate limit tracking
+        if (existingOtpDoc) {
+            existingOtpDoc.otp = otpCode;
+            existingOtpDoc.requestCount = (existingOtpDoc.requestCount || 1) + 1;
+            existingOtpDoc.lastRequestedAt = now;
+            await existingOtpDoc.save();
+        } else {
+            await Otp.create({
+                phoneNumber: cleanPhone,
+                otp: otpCode,
+                requestCount: 1,
+                lastRequestedAt: now
+            });
+        }
 
 
 

@@ -5,17 +5,24 @@ const { requireAuth } = require('../middlewares/authMiddleware');
 const { getMyProfile, updateMyProfile, registerUser, savePushToken, signupUser, loginUser, submitVerification, resetVerification, requestOTP, verifyOTP } = require('../controllers/userController');
 const User = require('../models/User'); 
 
-// Security: Rate limiting for auth routes (increased for dev testing)
+// Security: Rate limiting for auth routes
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 50,
     message: { error: 'Too many login attempts. Please try again after 15 minutes.' }
 });
 
+// Security: Strict rate limiting for OTP requests per IP (max 5 requests per 15 minutes)
+const otpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many OTP requests from this IP. Please try again after 15 minutes.' }
+});
+
 router.post('/signup', authLimiter, signupUser);
 router.post('/login', authLimiter, loginUser);
-router.post('/send-otp', authLimiter, requestOTP);
-router.post('/request-otp', authLimiter, requestOTP);
+router.post('/send-otp', otpLimiter, requestOTP);
+router.post('/request-otp', otpLimiter, requestOTP);
 router.post('/verify-otp', authLimiter, verifyOTP);
 
 router.get('/me', requireAuth, getMyProfile);
