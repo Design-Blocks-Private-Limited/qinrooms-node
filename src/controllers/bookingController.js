@@ -456,7 +456,9 @@ const createBooking = async (req, res) => {
         res.status(201).json({ id: newBooking._id, ...newBooking._doc });
     } catch (error) {
         await session.abortTransaction();
+        if (res.headersSent) throw error;
         res.status(409).json({ error: error.message });
+        throw error;
     } finally {
         session.endSession();
     }

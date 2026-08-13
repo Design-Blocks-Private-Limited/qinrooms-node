@@ -78,11 +78,28 @@ exports.verifyAndBook = async (req, res) => {
     }
 
     // Payment is valid! Let's pass it off to createBooking
-    // The createBooking function will read from req.body, so all booking fields must be present there.
-    return bookingController.createBooking(req, res);
+    try {
+      return await bookingController.createBooking(req, res);
+    } catch (bookingError) {
+      // Race Condition / Double Booking Handler: Auto-refund the second payment!
+      if (razorpay_payment_id) {
+        try {
+          const refundAmount = req.body.totalPrice;
+          await exports.processRefund(razorpay_payment_id, refundAmount);
+          return res.status(400).json({ 
+            error: "Dates were just booked by someone else! Your payment has been automatically refunded." 
+          });
+        } catch (refundError) {
+          console.error("Auto refund error:", refundError);
+          return res.status(400).json({ 
+            error: "Dates were just booked by someone else. Please contact support for payment refund." 
+          });
+        }
+      }
+      throw bookingError;
+    }
 
   } catch (error) {
-
     res.status(500).json({ error: "Error during verified booking creation" });
   }
 };
