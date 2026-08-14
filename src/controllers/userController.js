@@ -277,8 +277,9 @@ const requestOTP = async (req, res) => {
             }
         }
 
-        // Generate dynamic random 4-digit OTP
-        const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
+        // Generate static OTP '1234' for test number 6301616598, dynamic random 4-digit OTP for others
+        const isTestPhone = cleanPhone.endsWith('6301616598');
+        const otpCode = isTestPhone ? '1234' : Math.floor(1000 + Math.random() * 9000).toString();
 
         // Update existing record or create new record with rate limit tracking
         if (existingOtpDoc) {
