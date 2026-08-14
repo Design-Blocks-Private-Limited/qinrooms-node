@@ -121,7 +121,13 @@ const getMyTrips = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        const formatted = bookings.map(b => ({ id: b._id, ...b._doc }));
+        const formatted = bookings.map(b => {
+            let inTime = b.checkInTime || '08:00 AM';
+            let outTime = b.checkOutTime || '07:00 AM';
+            if (inTime === '09:00 AM') inTime = '08:00 AM';
+            if (outTime === '08:00 AM') outTime = '07:00 AM';
+            return { id: b._id, ...b._doc, checkInTime: inTime, checkOutTime: outTime };
+        });
         res.json(formatPaginatedResponse(formatted, total, page, limit));
     } catch (error) {
 
@@ -171,7 +177,12 @@ const getBookingById = async (req, res) => {
             }
         }
 
-        res.json({ id: booking._id, ...booking._doc, hostDetails });
+        let inTime = booking.checkInTime || '08:00 AM';
+        let outTime = booking.checkOutTime || '07:00 AM';
+        if (inTime === '09:00 AM') inTime = '08:00 AM';
+        if (outTime === '08:00 AM') outTime = '07:00 AM';
+
+        res.json({ id: booking._id, ...booking._doc, checkInTime: inTime, checkOutTime: outTime, hostDetails });
     } catch (error) {
         res.status(500).json({ error: error.message, stack: error.stack });
     }
