@@ -95,7 +95,7 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
         if (cleanPhone) {
             await Listing.updateMany(
                 { assignedPhoneNumber: cleanPhone, hostId: { $ne: req.user.uid } },
-                { $set: { hostId: req.user.uid, hostName: user.name || `User ${cleanPhone.slice(-4)}`, status: 'active' } }
+                { $set: { hostId: req.user.uid, hostName: user.name || `User ${cleanPhone.slice(-4)}` } }
             );
             if (user && !user.isHost) {
                 await User.findByIdAndUpdate(req.user.uid, { $set: { isHost: true } });

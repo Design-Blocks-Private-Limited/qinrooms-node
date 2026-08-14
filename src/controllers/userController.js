@@ -414,7 +414,7 @@ const verifyOTP = async (req, res) => {
         if (assignedListings.length > 0) {
             await Listing.updateMany(
                 { assignedPhoneNumber: cleanPhone },
-                { $set: { hostId: user._id.toString(), hostName: user.name || `User ${cleanPhone.slice(-4)}`, status: 'active' } }
+                { $set: { hostId: user._id.toString(), hostName: user.name || `User ${cleanPhone.slice(-4)}` } }
             );
             if (!user.isHost) {
                 user.isHost = true;
