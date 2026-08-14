@@ -377,6 +377,8 @@ const createBooking = async (req, res) => {
         const generatedOtp = Math.random().toString(36).substring(2, 6).toUpperCase();
         const newBooking = new Booking({ 
             ...req.body, 
+            checkInTime: req.body.checkInTime || listing.checkInTime || '08:00 AM',
+            checkOutTime: req.body.checkOutTime || listing.checkOutTime || '07:00 AM',
             bookerId: req.user.uid,
             checkInOtp: generatedOtp 
         });
