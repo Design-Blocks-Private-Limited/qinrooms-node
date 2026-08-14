@@ -33,25 +33,26 @@ const requireAuth = async (req, res, next) => {
     }
 };
 
-// 👇 NEW: Master Admin Check 👇
-const requireAdmin = async (req, res, next) => {
+const optionalAuth = async (req, res, next) => {
     try {
-        // We assume requireAuth runs first, so req.user is already populated
-        const uid = req.user.uid;
-
-        // Find the user in MongoDB
-        const user = await User.findById(uid);
-
-        // Check if they exist AND are an admin
-        if (!user || user.isAdmin !== true) {
-            return res.status(403).json({ error: 'Forbidden: Master Admin access required' });
+        const token = req.headers.authorization?.split('Bearer ')[1];
+        if (token) {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_qin_jwt_key_2026');
+            const user = await User.findById(decoded.id);
+            if (user) {
+                req.user = {
+                    id: user._id.toString(),
+                    uid: user._id.toString(),
+                    email: user.email,
+                    phoneNumber: user.phoneNumber,
+                    name: user.name
+                };
+            }
         }
-
-        next(); // They have the master key! Proceed to the route.
     } catch (error) {
-
-        res.status(500).json({ error: 'Server error checking admin privileges' });
+        // Token invalid or missing, proceed as guest
     }
+    next();
 };
 
-module.exports = { requireAuth, requireAdmin }; // 👈 Export both
+module.exports = { requireAuth, requireAdmin, optionalAuth }; // 👈 Export all

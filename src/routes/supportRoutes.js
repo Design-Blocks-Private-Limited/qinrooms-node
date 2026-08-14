@@ -1,38 +1,48 @@
 const express = require('express');
 const router = express.Router();
 const SupportTicket = require('../models/SupportTicket');
-const { requireAuth } = require('../middlewares/authMiddleware');
+const { optionalAuth } = require('../middlewares/authMiddleware');
 
-// 1. GET ACTIVE CHAT HISTORY (For Mobile App)
-router.get('/', requireAuth, async (req, res) => {
+const getTargetUserId = (req) => {
+    return req.user?.uid || req.headers['x-guest-id'] || req.query.guestId || req.body.guestId;
+};
+
+// 1. GET ACTIVE CHAT HISTORY
+router.get('/', optionalAuth, async (req, res) => {
     try {
-        const ticket = await SupportTicket.findOne({ userId: req.user.uid }).sort({ createdAt: -1 });
+        const userId = getTargetUserId(req);
+        if (!userId) return res.json({ messages: [] });
+        const ticket = await SupportTicket.findOne({ userId }).sort({ createdAt: -1 });
         res.json(ticket || { messages: [] });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch support chat.' });
     }
 });
 
-// 2. SEND A NEW MESSAGE IN CHAT (For Mobile App)
-router.post('/message', requireAuth, async (req, res) => {
+// 2. SEND A NEW MESSAGE IN CHAT
+router.post('/message', optionalAuth, async (req, res) => {
     try {
         const { text, userName } = req.body;
+        const userId = getTargetUserId(req);
         
         if (!text || !text.trim()) {
             return res.status(400).json({ error: 'Message cannot be empty.' });
         }
+        if (!userId) {
+            return res.status(400).json({ error: 'Guest ID or authorization required.' });
+        }
 
-        let ticket = await SupportTicket.findOne({ userId: req.user.uid }).sort({ createdAt: -1 });
+        let ticket = await SupportTicket.findOne({ userId }).sort({ createdAt: -1 });
         let isNewOrReopened = false;
 
         // If the user doesn't have an open ticket, create a new chat session
         if (!ticket) {
             isNewOrReopened = true;
             ticket = new SupportTicket({
-                userId: req.user.uid,
-                userName: userName || req.user.name || "Guest User",
-                userEmail: req.user.email || req.body.userEmail || "",
-                userPhone: req.user.phoneNumber || req.body.userPhone || "",
+                userId: userId,
+                userName: userName || req.user?.name || "Guest User",
+                userEmail: req.user?.email || req.body.userEmail || "",
+                userPhone: req.user?.phoneNumber || req.body.userPhone || "",
                 messages: []
             });
         } else if (ticket.status === 'resolved') {
@@ -98,13 +108,14 @@ router.post('/message', requireAuth, async (req, res) => {
 });
 
 // 3. SUBMIT TICKET RATING
-router.patch('/rate', requireAuth, async (req, res) => {
+router.patch('/rate', optionalAuth, async (req, res) => {
     try {
         const { ticketId, rating } = req.body;
+        const userId = getTargetUserId(req);
         if (!ticketId || !rating) return res.status(400).json({ error: 'Missing rating details.' });
 
         const ticket = await SupportTicket.findOneAndUpdate(
-            { _id: ticketId, userId: req.user.uid },
+            { _id: ticketId, userId },
             { $set: { rating } },
             { new: true }
         );
@@ -119,9 +130,10 @@ router.patch('/rate', requireAuth, async (req, res) => {
 });
 
 // 4. REOPEN TICKET
-router.patch('/reopen', requireAuth, async (req, res) => {
+router.patch('/reopen', optionalAuth, async (req, res) => {
     try {
-        let ticket = await SupportTicket.findOne({ userId: req.user.uid }).sort({ createdAt: -1 });
+        const userId = getTargetUserId(req);
+        let ticket = await SupportTicket.findOne({ userId }).sort({ createdAt: -1 });
         if (ticket && ticket.status === 'resolved') {
             ticket.status = 'open';
             ticket.rating = null;
