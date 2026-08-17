@@ -33,6 +33,21 @@ const requireAuth = async (req, res, next) => {
     }
 };
 
+const requireAdmin = async (req, res, next) => {
+    try {
+        const uid = req.user?.uid;
+        const user = await User.findById(uid);
+
+        if (!user || user.isAdmin !== true) {
+            return res.status(403).json({ error: 'Forbidden: Master Admin access required' });
+        }
+
+        next();
+    } catch (error) {
+        res.status(500).json({ error: 'Server error checking admin privileges' });
+    }
+};
+
 const optionalAuth = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.split('Bearer ')[1];
