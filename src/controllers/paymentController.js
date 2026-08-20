@@ -10,12 +10,13 @@ const razorpay = new Razorpay({
 exports.createOrder = async (req, res) => {
   try {
     const { amount } = req.body;
-    if (!amount) {
-      return res.status(400).json({ error: "Amount is required" });
+    const numericAmount = Number(amount);
+    if (!amount || isNaN(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ error: "Valid amount is required" });
     }
 
     const options = {
-      amount: amount * 100, // amount in the smallest currency unit (paise)
+      amount: Math.round(numericAmount * 100), // amount in the smallest currency unit (paise) must be an integer
       currency: "INR",
       receipt: `receipt_order_${Date.now()}`,
     };
@@ -23,13 +24,13 @@ exports.createOrder = async (req, res) => {
     const order = await razorpay.orders.create(options);
 
     if (!order) {
-      return res.status(500).json({ error: "Some error occured creating order" });
+      return res.status(500).json({ error: "Some error occurred creating order" });
     }
 
     res.json({ ...order, key_id: process.env.RAZORPAY_KEY_ID });
   } catch (error) {
-
-    res.status(500).json({ error: "Error creating Razorpay order" });
+    console.error("Error creating Razorpay order:", error);
+    res.status(500).json({ error: error.message || error.description || "Error creating Razorpay order" });
   }
 };
 
