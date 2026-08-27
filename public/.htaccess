@@ -1,0 +1,21 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Handle /admin routing (Single Page Application)
+  RewriteCond %{REQUEST_URI} ^/admin
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^admin/.*$ /admin/index.html [L]
+
+  # Handle /host routing (Single Page Application)
+  RewriteCond %{REQUEST_URI} ^/host
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^host/.*$ /host/index.html [L]
+
+  # Handle root routing fallback
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^.*$ /host/index.html [L]
+</IfModule>

@@ -120,17 +120,7 @@ app.use("/api/wallet", require("./routes/walletRoutes")); // ✅ MOUNT WALLET RO
 
 app.use("/api/admin", adminRoutes);
 
-// ✅ SERVE ADMIN PORTAL
-app.use("/admin", express.static(path.join(__dirname, "../public/admin")));
-app.use("/admin", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/admin/index.html"));
-});
 
-// ✅ SERVE HOST PORTAL
-app.use("/host", express.static(path.join(__dirname, "../public/host")));
-app.use("/host", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/host/index.html"));
-});
 
 app.get("/", (req, res) => {
   res.send("QIN Backend API is running!");
