@@ -92,9 +92,27 @@ const getHostReservations = async (req, res) => {
                 Booking.findByIdAndUpdate(b._id, { $set: { status: 'completed' } }).catch(console.error);
             }
 
+            // Fallback: If bookerPhone is not stored directly on booking, look up user profile
+            let resolvedPhone = b.bookerPhone || b.phoneNumber || '';
+            if (!resolvedPhone && b.bookerId) {
+                try {
+                    let bookerUser = await User.findById(b.bookerId);
+                    if (!bookerUser) {
+                        bookerUser = await User.collection.findOne({ _id: b.bookerId });
+                    }
+                    if (bookerUser && bookerUser.phoneNumber) {
+                        resolvedPhone = bookerUser.phoneNumber;
+                    }
+                } catch (uErr) {
+                    console.log("Error looking up booker user phone:", uErr);
+                }
+            }
+
             formatted.push({
                 id: b._id,
                 ...b._doc,
+                bookerPhone: resolvedPhone,
+                phoneNumber: resolvedPhone,
                 status: currentStatus,
                 checkInTime,
                 checkOutTime,
@@ -572,6 +590,17 @@ const getAllHostBookings = async (req, res) => {
 
         const now = new Date();
         const bookings = await Booking.find(filter).sort({ createdAt: -1 });
+
+        // Pre-fetch users for bookings missing bookerPhone
+        const bookerIdsMissingPhone = bookings.filter(b => !b.bookerPhone && b.bookerId).map(b => b.bookerId);
+        const userPhoneMap = {};
+        if (bookerIdsMissingPhone.length > 0) {
+            const userDocs = await User.find({ _id: { $in: bookerIdsMissingPhone } });
+            userDocs.forEach(u => {
+                if (u.phoneNumber) userPhoneMap[u._id.toString()] = u.phoneNumber;
+            });
+        }
+
         let formatted = bookings.map(b => {
             const prop = listingMap[b.listingId?.toString()] || {};
             const checkInTime = b.checkInTime || prop.checkInTime || '08:00 AM';
@@ -583,9 +612,13 @@ const getAllHostBookings = async (req, res) => {
                 Booking.findByIdAndUpdate(b._id, { $set: { status: 'completed' } }).catch(console.error);
             }
 
+            const resolvedPhone = b.bookerPhone || b.phoneNumber || userPhoneMap[b.bookerId?.toString()] || '';
+
             return {
                 id: b._id,
                 ...b._doc,
+                bookerPhone: resolvedPhone,
+                phoneNumber: resolvedPhone,
                 status: currentStatus,
                 checkInTime,
                 checkOutTime,

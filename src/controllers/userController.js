@@ -261,9 +261,9 @@ const requestOTP = async (req, res) => {
             const lastRequested = new Date(existingOtpDoc.lastRequestedAt || existingOtpDoc.updatedAt || existingOtpDoc.createdAt);
             const timeDiffSeconds = Math.floor((now.getTime() - lastRequested.getTime()) / 1000);
 
-            // 60-second minimum cooldown between requests
-            if (timeDiffSeconds < 60) {
-                const waitSeconds = 60 - timeDiffSeconds;
+            // 30-second minimum cooldown between requests (matches app resend timer)
+            if (timeDiffSeconds < 30) {
+                const waitSeconds = 30 - timeDiffSeconds;
                 return res.status(429).json({
                     error: `Please wait ${waitSeconds} second${waitSeconds > 1 ? 's' : ''} before requesting another OTP.`
                 });
