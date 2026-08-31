@@ -15,6 +15,11 @@ const BookingSchema = new mongoose.Schema({
     // Guest Info
     bookerName: { type: String, required: true },
     bookerEmail: { type: String }, // Good practice to include
+    guestIdType: { type: String, default: null },
+    guestIdNumber: { type: String, default: null },
+    guestIdCardFront: { type: String, default: null },
+    guestIdCardBack: { type: String, default: null },
+    guestIdDocumentUrl: { type: String, default: null },
 
     // Booking Details
     status: { type: String, default: 'upcoming' }, // 'upcoming', 'active', 'completed', 'cancelled', 'pending_refund', 'refunded'

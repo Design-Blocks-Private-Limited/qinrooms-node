@@ -385,9 +385,28 @@ const createBooking = async (req, res) => {
 
         if (isBlockedNow) throw new Error("Dates were just booked by someone else!");
 
+        // Attach existing Govt ID from user profile if available
+        let bookerUser = null;
+        try {
+            bookerUser = await User.findById(req.user.uid).session(session);
+        } catch (uErr) {
+            bookerUser = await User.collection.findOne({ _id: req.user.uid });
+        }
+
+        const guestIdType = req.body.guestIdType || bookerUser?.idType || null;
+        const guestIdNumber = req.body.guestIdNumber || bookerUser?.idNumber || null;
+        const guestIdCardFront = req.body.guestIdCardFront || bookerUser?.idCardFront || bookerUser?.idDocumentUrl || null;
+        const guestIdCardBack = req.body.guestIdCardBack || bookerUser?.idCardBack || null;
+        const guestIdDocumentUrl = req.body.guestIdDocumentUrl || bookerUser?.idDocumentUrl || bookerUser?.idCardFront || null;
+
         const generatedOtp = Math.random().toString(36).substring(2, 6).toUpperCase();
         const newBooking = new Booking({ 
             ...req.body, 
+            guestIdType,
+            guestIdNumber,
+            guestIdCardFront,
+            guestIdCardBack,
+            guestIdDocumentUrl,
             checkInTime: req.body.checkInTime || listing.checkInTime || '08:00 AM',
             checkOutTime: req.body.checkOutTime || listing.checkOutTime || '07:00 AM',
             bookerId: req.user.uid,
@@ -657,6 +676,74 @@ const checkOutBooking = async (req, res) => {
     }
 };
 
+// 11. POST-PAYMENT GOVT ID UPLOAD (Updates current booking & saves to user profile)
+const attachGovtIdToBooking = async (req, res) => {
+    try {
+        const { bookingId, idType, idNumber, idCardFront, idCardBack, idDocumentUrl } = req.body;
+        if (!idNumber || !idNumber.trim()) {
+            return res.status(400).json({ error: 'Government ID number is required.' });
+        }
+
+        const idTypeVal = idType || 'Aadhaar';
+        const idNumVal = idNumber.trim();
+        const frontVal = idCardFront || idDocumentUrl || null;
+        const backVal = idCardBack || null;
+        const docVal = idDocumentUrl || idCardFront || null;
+
+        // 1. Update User Profile so customer won't be prompted again
+        await User.findByIdAndUpdate(req.user.uid, {
+            $set: {
+                idType: idTypeVal,
+                idNumber: idNumVal,
+                idCardFront: frontVal,
+                idCardBack: backVal,
+                idDocumentUrl: docVal
+            }
+        });
+
+        // 2. Update Booking if bookingId is provided
+        let updatedBooking = null;
+        if (bookingId) {
+            updatedBooking = await Booking.findByIdAndUpdate(
+                bookingId,
+                {
+                    $set: {
+                        guestIdType: idTypeVal,
+                        guestIdNumber: idNumVal,
+                        guestIdCardFront: frontVal,
+                        guestIdCardBack: backVal,
+                        guestIdDocumentUrl: docVal
+                    }
+                },
+                { new: true, returnDocument: 'after' }
+            );
+
+            // Also update host's WalkInGuest record if available
+            if (updatedBooking) {
+                await WalkInGuest.findOneAndUpdate(
+                    { hostId: updatedBooking.hostId, bookerPhone: updatedBooking.bookerPhone },
+                    {
+                        $set: {
+                            guestIdType: idTypeVal,
+                            guestIdNumber: idNumVal,
+                            guestIdImage: frontVal
+                        }
+                    }
+                );
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Government ID updated successfully.',
+            booking: updatedBooking
+        });
+    } catch (error) {
+        console.error("Failed to attach Govt ID to booking:", error);
+        res.status(500).json({ error: 'Failed to attach Government ID' });
+    }
+};
+
 module.exports = {
     getHostReservations,
     getAllHostBookings,
@@ -667,5 +754,6 @@ module.exports = {
     createBooking,
     searchGuest,
     checkInBooking,
-    checkOutBooking
+    checkOutBooking,
+    attachGovtIdToBooking
 };

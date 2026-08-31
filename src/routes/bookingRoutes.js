@@ -11,7 +11,8 @@ const {
     createBooking,
     searchGuest,
     checkInBooking,
-    checkOutBooking
+    checkOutBooking,
+    attachGovtIdToBooking
 } = require('../controllers/bookingController');
 
 // 1. GET: Fetch Active and Upcoming Reservations for the Host
@@ -25,6 +26,9 @@ router.get('/search-guest', requireAuth, searchGuest);
 
 // 2. GET: Fetch Trips for the logged-in Guest
 router.get('/my-trips', requireAuth, getMyTrips);
+
+// Post-payment Govt ID upload route
+router.post('/attach-govt-id', requireAuth, attachGovtIdToBooking);
 
 // 3. GET: Single booking by ID
 router.get('/:id', requireAuth, getBookingById);
