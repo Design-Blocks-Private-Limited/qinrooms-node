@@ -410,16 +410,30 @@ const verifyOTP = async (req, res) => {
         }
 
         // Check if any listings were assigned to this phone number by Admin
-        const assignedListings = await Listing.find({ assignedPhoneNumber: cleanPhone });
+        const last10 = cleanPhone.slice(-10);
+        const assignedListings = await Listing.find({
+            $or: [
+                { assignedPhoneNumber: cleanPhone },
+                { assignedPhoneNumber: last10 },
+                { assignedPhoneNumber: `+91${last10}` },
+                { assignedPhoneNumber: `91${last10}` }
+            ]
+        });
         if (assignedListings.length > 0) {
             await Listing.updateMany(
-                { assignedPhoneNumber: cleanPhone },
-                { $set: { hostId: user._id.toString(), hostName: user.name || `User ${cleanPhone.slice(-4)}` } }
+                {
+                    $or: [
+                        { assignedPhoneNumber: cleanPhone },
+                        { assignedPhoneNumber: last10 },
+                        { assignedPhoneNumber: `+91${last10}` },
+                        { assignedPhoneNumber: `91${last10}` }
+                    ]
+                },
+                { $set: { hostId: user._id.toString(), hostName: user.name || `User ${last10.slice(-4)}` } }
             );
-            if (!user.isHost) {
-                user.isHost = true;
-                await user.save();
-            }
+            user.isHost = true;
+            user.verificationStatus = 'verified';
+            await user.save();
         }
 
         // Sign 30-day JWT Token

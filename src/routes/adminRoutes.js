@@ -102,11 +102,19 @@ router.post('/listings', async (req, res) => {
 
         if (listingData.assignedPhoneNumber) {
             const cleanPhone = listingData.assignedPhoneNumber.replace(/[^0-9]/g, '');
+            const last10 = cleanPhone.slice(-10);
             assignedPhoneNumber = cleanPhone;
-            const targetUser = await User.findOne({ phoneNumber: cleanPhone });
+            const targetUser = await User.findOne({
+                $or: [
+                    { phoneNumber: cleanPhone },
+                    { phoneNumber: last10 },
+                    { phoneNumber: `+91${last10}` },
+                    { phoneNumber: `91${last10}` }
+                ]
+            });
             if (targetUser) {
                 hostId = targetUser._id.toString();
-                hostName = targetUser.name || `User ${cleanPhone.slice(-4)}`;
+                hostName = targetUser.name || `User ${last10.slice(-4)}`;
                 targetUser.isHost = true;
                 targetUser.verificationStatus = 'verified';
                 await targetUser.save();
@@ -138,7 +146,8 @@ router.patch('/listings/:id/assign', async (req, res) => {
         }
 
         const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-        if (cleanPhone.length < 10) {
+        const last10 = cleanPhone.slice(-10);
+        if (last10.length < 10) {
             return res.status(400).json({ error: 'Invalid 10-digit mobile number' });
         }
 
@@ -148,10 +157,17 @@ router.patch('/listings/:id/assign', async (req, res) => {
         listing.assignedPhoneNumber = cleanPhone;
         listing.status = 'active';
 
-        const targetUser = await User.findOne({ phoneNumber: cleanPhone });
+        const targetUser = await User.findOne({
+            $or: [
+                { phoneNumber: cleanPhone },
+                { phoneNumber: last10 },
+                { phoneNumber: `+91${last10}` },
+                { phoneNumber: `91${last10}` }
+            ]
+        });
         if (targetUser) {
             listing.hostId = targetUser._id.toString();
-            listing.hostName = targetUser.name || `User ${cleanPhone.slice(-4)}`;
+            listing.hostName = targetUser.name || `User ${last10.slice(-4)}`;
             targetUser.isHost = true;
             targetUser.verificationStatus = 'verified';
             await targetUser.save();

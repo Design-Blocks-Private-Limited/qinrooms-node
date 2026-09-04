@@ -38,8 +38,12 @@ router.get('/', async (req, res) => {
         const verifiedUserIds = verifiedUsers.map(u => u._id.toString());
 
         const filter = { 
-            status: 'active',
-            hostId: { $in: verifiedUserIds }
+            status: { $in: ['active', 'approved'] },
+            $or: [
+                { hostId: { $in: verifiedUserIds } },
+                { hostId: 'admin_host' },
+                { assignedPhoneNumber: { $exists: true, $ne: null, $ne: '' } }
+            ]
         };
         
         // ✅ UPDATED: Split the comma-separated string into an array for MongoDB
@@ -80,10 +84,15 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
     try {
         const user = await User.findById(req.user.uid);
         const cleanPhone = user?.phoneNumber ? user.phoneNumber.replace(/[^0-9]/g, '') : null;
+        const last10 = cleanPhone ? cleanPhone.slice(-10) : null;
 
         const orConditions = [{ hostId: req.user.uid }];
         if (cleanPhone) {
             orConditions.push({ assignedPhoneNumber: cleanPhone });
+            if (last10) {
+                orConditions.push({ assignedPhoneNumber: last10 });
+                orConditions.push({ assignedPhoneNumber: `+91${last10}` });
+            }
         }
 
         const query = { $or: orConditions };
@@ -92,13 +101,31 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
         }
 
         // Auto-link assigned listings to this user
-        if (cleanPhone) {
+        if (cleanPhone && last10) {
             await Listing.updateMany(
-                { assignedPhoneNumber: cleanPhone, hostId: { $ne: req.user.uid } },
-                { $set: { hostId: req.user.uid, hostName: user.name || `User ${cleanPhone.slice(-4)}` } }
+                {
+                    $or: [
+                        { assignedPhoneNumber: cleanPhone },
+                        { assignedPhoneNumber: last10 },
+                        { assignedPhoneNumber: `+91${last10}` }
+                    ],
+                    hostId: { $ne: req.user.uid }
+                },
+                { $set: { hostId: req.user.uid, hostName: user.name || `User ${last10.slice(-4)}` } }
             );
-            if (user && !user.isHost) {
-                await User.findByIdAndUpdate(req.user.uid, { $set: { isHost: true } });
+            if (user) {
+                let updated = false;
+                if (!user.isHost) {
+                    user.isHost = true;
+                    updated = true;
+                }
+                if (user.verificationStatus !== 'verified') {
+                    user.verificationStatus = 'verified';
+                    updated = true;
+                }
+                if (updated) {
+                    await user.save();
+                }
             }
         }
 
