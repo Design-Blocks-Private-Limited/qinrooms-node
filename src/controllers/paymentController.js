@@ -3,8 +3,8 @@ const crypto = require("crypto");
 
 // Razorpay instance
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_SECRET,
+  key_id: (process.env.RAZORPAY_KEY_ID || 'rzp_test_TWGsIWyg0gwDiq').trim(),
+  key_secret: (process.env.RAZORPAY_SECRET || 'M82BSUa02493i2pLm5aI3YV0').trim(),
 });
 
 exports.createOrder = async (req, res) => {
@@ -27,7 +27,7 @@ exports.createOrder = async (req, res) => {
       return res.status(500).json({ error: "Some error occurred creating order" });
     }
 
-    res.json({ ...order, key_id: process.env.RAZORPAY_KEY_ID });
+    res.json({ ...order, key_id: (process.env.RAZORPAY_KEY_ID || 'rzp_test_TWGsIWyg0gwDiq').trim() });
   } catch (error) {
     console.error("Error creating Razorpay order:", error);
     res.status(500).json({ error: error.message || error.description || "Error creating Razorpay order" });

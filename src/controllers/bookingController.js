@@ -371,7 +371,8 @@ const createBooking = async (req, res) => {
             let newBlockedRooms = dayData.blockedRooms || [];
             let newBookedCount = dayData.bookedCount || 0;
             
-            if (type === 'hotel' || type === 'dorm') {
+            const isBedOrRoomType = ['hotel', 'dorm', 'dormitory', 'pg'].includes((type || '').toLowerCase()) || selectedRooms.some(r => r.bedNumber !== undefined || r.originalIndex !== undefined);
+            if (isBedOrRoomType) {
                 const selectingBlockedRoom = selectedRooms.some(r => 
                     r.originalIndex !== undefined && newBlockedRooms.includes(r.originalIndex)
                 );
@@ -381,6 +382,9 @@ const createBooking = async (req, res) => {
                 let newBlockedIndices = selectedRooms.filter(r => r.originalIndex !== undefined).map(r => r.originalIndex);
                 newBlockedRooms = [...new Set([...newBlockedRooms, ...newBlockedIndices])];
                 newBookedCount += selectedRooms.filter(r => r.originalIndex === undefined).length;
+                if (selectedRooms.length > 0 && newBlockedIndices.length === 0) {
+                    newBookedCount += selectedRooms.length;
+                }
             } else {
                 if (newBookedCount >= freshMaxInventory || dayData.status === 'blocked') {
                     isBlockedNow = true; break;
@@ -483,6 +487,25 @@ const createBooking = async (req, res) => {
         }
 
         await session.commitTransaction();
+
+        // ✅ EMIT INSTANT SOCKET UPDATE FOR LISTING AVAILABILITY
+        try {
+            if (global.io) {
+                const updatedListing = await Listing.findById(listingId).lean();
+                if (updatedListing) {
+                    global.io.to(`listing_${listingId}`).emit("listing_availability_updated", {
+                        listingId,
+                        availability: updatedListing.availability
+                    });
+                    global.io.emit("listing_availability_updated", {
+                        listingId,
+                        availability: updatedListing.availability
+                    });
+                }
+            }
+        } catch (socketErr) {
+            console.error("Socket emission error:", socketErr);
+        }
 
         // ✅ SEND NOTIFICATIONS NOW THAT DB SAVES ARE SUCCESSFUL
         try {

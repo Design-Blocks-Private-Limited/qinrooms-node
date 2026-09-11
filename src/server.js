@@ -66,7 +66,14 @@ io.on("connection", (socket) => {
 
   socket.on("join_user", (userId) => {
     socket.join(userId);
+  });
 
+  socket.on("join_listing", (listingId) => {
+    if (listingId) socket.join(`listing_${listingId}`);
+  });
+
+  socket.on("leave_listing", (listingId) => {
+    if (listingId) socket.leave(`listing_${listingId}`);
   });
 
   socket.on("disconnect", () => {
