@@ -261,9 +261,14 @@ const requestOTP = async (req, res) => {
             const lastRequested = new Date(existingOtpDoc.lastRequestedAt || existingOtpDoc.updatedAt || existingOtpDoc.createdAt);
             const timeDiffSeconds = Math.floor((now.getTime() - lastRequested.getTime()) / 1000);
 
-            // 30-second minimum cooldown between requests (matches app resend timer)
-            if (timeDiffSeconds < 30) {
-                const waitSeconds = 30 - timeDiffSeconds;
+            // If last request was more than 1 hour ago (3600 seconds), reset request count
+            if (timeDiffSeconds >= 3600) {
+                existingOtpDoc.requestCount = 0;
+            }
+
+            // 60-second minimum cooldown between requests (matches app resend timer)
+            if (timeDiffSeconds < 60) {
+                const waitSeconds = 60 - timeDiffSeconds;
                 return res.status(429).json({
                     error: `Please wait ${waitSeconds} second${waitSeconds > 1 ? 's' : ''} before requesting another OTP.`
                 });
@@ -298,69 +303,70 @@ const requestOTP = async (req, res) => {
 
 
 
-        // Exotel SMS Credentials
-        const exotelSid = process.env.EXOTEL_ACCOUNT_SID;
-        const exotelApiKey = process.env.EXOTEL_API_KEY;
-        const exotelApiToken = process.env.EXOTEL_API_TOKEN;
-        const exotelSubdomain = process.env.EXOTEL_SUBDOMAIN || 'api.exotel.com';
-        const exotelSenderId = process.env.EXOTEL_SENDER_ID || '';
+        // MSG91 SMS Credentials
+        const msg91AuthKey = process.env.MSG91_AUTH_KEY;
+        const msg91TemplateId = process.env.MSG91_TEMPLATE_ID;
+        const msg91SenderId = process.env.MSG91_SENDER_ID;
 
-        // Check if Exotel API keys are fully configured
-        if (!exotelSid || !exotelApiKey || !exotelApiToken || exotelApiKey.trim() === '' || exotelApiToken.trim() === '') {
-            console.log("Exotel OTP Service: Missing credentials. Skipping Exotel API call.");
+        // Check if MSG91 API keys are configured
+        if (!msg91AuthKey || msg91AuthKey.trim() === '' || !msg91TemplateId) {
+            console.log("MSG91 OTP Service: Missing credentials. Skipping MSG91 API call.");
             return res.status(200).json({ 
                 success: true,
                 message: "OTP generated. (Check backend console for code or use 123456)" 
             });
         }
 
-        // Dispatch SMS via Exotel REST API
+        // Dispatch SMS via MSG91 Flow API (for SMS DLT Templates)
         try {
-            const authHeader = 'Basic ' + Buffer.from(`${exotelApiKey}:${exotelApiToken}`).toString('base64');
-            const exotelUrl = `https://${exotelSubdomain}/v1/Accounts/${exotelSid}/Sms/send.json`;
-
             const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+            const msg91Url = 'https://control.msg91.com/api/v5/flow/';
 
-            const params = new URLSearchParams();
-            if (exotelSenderId) params.append('From', exotelSenderId);
-            params.append('To', formattedPhone);
-            params.append('Body', `Your OTP for the Qin Rooms by BGT GROUPS is ${otpCode}. Please do not share it with anybody.`);
+            const recipientObj = {
+                mobiles: formattedPhone,
+                value: otpCode.toString()
+            };
 
-            // DLT Template & Entity ID for Indian Telecom Operators
-            if (process.env.EXOTEL_DLT_ENTITY_ID) params.append('DltEntityId', process.env.EXOTEL_DLT_ENTITY_ID);
-            if (process.env.EXOTEL_DLT_TEMPLATE_ID) params.append('DltTemplateId', process.env.EXOTEL_DLT_TEMPLATE_ID);
+            const payload = {
+                template_id: msg91TemplateId,
+                short_url: "0",
+                recipients: [recipientObj]
+            };
 
-            console.log("Exotel OTP Service: Sending request to", exotelUrl);
-            console.log("Exotel OTP Service: Params", params.toString());
-            const response = await fetch(exotelUrl, {
+            if (msg91SenderId && msg91SenderId.trim() !== '') {
+                payload.sender = msg91SenderId.trim();
+            }
+
+            console.log("MSG91 OTP Service: Sending request to", msg91Url);
+            console.log("MSG91 OTP Service: Payload", JSON.stringify(payload));
+
+            const response = await fetch(msg91Url, {
                 method: 'POST',
                 headers: {
-                    'Authorization': authHeader,
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    'authkey': msg91AuthKey,
+                    'content-type': 'application/json'
                 },
-                body: params.toString()
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
-            console.log("Exotel OTP Service: Response status:", response.status);
-            console.log("Exotel OTP Service: Response data:", JSON.stringify(data));
-            if (!response.ok || data.RestException) {
-                console.error("Exotel OTP Service Error:", data.RestException || "Unknown error");
+            console.log("MSG91 OTP Service: Response status:", response.status);
+            console.log("MSG91 OTP Service: Response data:", JSON.stringify(data));
 
+            if (!response.ok || data.type === 'error') {
+                console.error("MSG91 OTP Service Error:", data.message || "Unknown error");
                 return res.status(200).json({ 
                     success: true,
                     message: "OTP sent." 
                 });
             }
 
-
             return res.status(200).json({
                 success: true,
                 message: 'OTP sent successfully via SMS.'
             });
         } catch (smsErr) {
-            console.error("Exotel OTP Service Exception:", smsErr);
-
+            console.error("MSG91 OTP Service Exception:", smsErr);
             return res.status(200).json({ 
                 success: true,
                 message: "OTP sent." 

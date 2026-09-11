@@ -48,15 +48,12 @@ router.get('/', async (req, res) => {
         
         // ✅ UPDATED: Split the comma-separated string into an array for MongoDB
         if (type) {
-            // Handle cases where `type` might be parsed as an array by Express
             const typeStr = Array.isArray(type) ? type.join(',') : type;
-            const typesArray = typeStr.split(','); 
-            
-            // Enum values in Mongoose are lowercase strings ('house', 'apartment', etc.)
-            // We cannot use RegExp with $in for Enums in Mongoose, it throws a CastError.
-            const lowerCaseArray = typesArray.map(t => t.trim().toLowerCase());
-            
-            filter.type = { $in: lowerCaseArray };
+            let typesArray = typeStr.split(',').map(t => t.trim().toLowerCase());
+            if (typesArray.includes('dormitory') || typesArray.includes('dorm')) {
+                typesArray.push('dorm', 'dormitory');
+            }
+            filter.type = { $in: [...new Set(typesArray)] };
         }
 
         const pageNum = parseInt(page, 10);
@@ -67,10 +64,11 @@ router.get('/', async (req, res) => {
         const listings = await Listing.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limitNum);
+            .limit(limitNum)
+            .lean();
         
         // MongoDB returns `_id`. React Native expects `id`. Let's map it safely.
-        const formattedListings = listings.map(l => ({ id: l._id, ...l._doc }));
+        const formattedListings = listings.map(l => ({ id: l._id, ...l }));
         
         res.json(formattedListings);
     } catch (error) {
@@ -82,7 +80,7 @@ router.get('/', async (req, res) => {
 // GET all listings for the logged-in Host
 router.get('/my-host-listings', requireAuth, async (req, res) => {
     try {
-        const user = await User.findById(req.user.uid);
+        const user = await User.findById(req.user.uid).lean();
         const cleanPhone = user?.phoneNumber ? user.phoneNumber.replace(/[^0-9]/g, '') : null;
         const last10 = cleanPhone ? cleanPhone.slice(-10) : null;
 
@@ -111,7 +109,7 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
                     ],
                     hostId: { $ne: req.user.uid }
                 },
-                { $set: { hostId: req.user.uid, hostName: user.name || `User ${last10.slice(-4)}` } }
+                { $set: { hostId: req.user.uid, hostName: user?.name || `User ${last10.slice(-4)}` } }
             );
             if (user) {
                 let updated = false;
@@ -124,13 +122,13 @@ router.get('/my-host-listings', requireAuth, async (req, res) => {
                     updated = true;
                 }
                 if (updated) {
-                    await user.save();
+                    await User.updateOne({ _id: req.user.uid }, { $set: { isHost: true, verificationStatus: 'verified' } });
                 }
             }
         }
 
-        const listings = await Listing.find(query).sort({ createdAt: -1 });
-        const formattedListings = listings.map(l => ({ id: l._id, ...l._doc }));
+        const listings = await Listing.find(query).sort({ createdAt: -1 }).lean();
+        const formattedListings = listings.map(l => ({ id: l._id, ...l }));
         res.json(formattedListings);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch your listings' });
@@ -142,10 +140,10 @@ router.get('/pricing', getPricing);
 // GET a single listing by ID (Now safely handling Firebase IDs)
 router.get('/:id', async (req, res) => {
     try {
-        const listing = await Listing.findById(req.params.id);
+        const listing = await Listing.findById(req.params.id).lean();
         if (!listing) return res.status(404).json({ error: 'Listing not found' });
         
-        res.json({ id: listing._id, ...listing._doc });
+        res.json({ id: listing._id, ...listing });
     } catch (error) {
         // CATCH MONGOOSE CAST ERRORS (Invalid ID formats)
         if (error.name === 'CastError') {

@@ -7,7 +7,7 @@ const ListingSchema = new mongoose.Schema({
     assignedPhoneNumber: { type: String, index: true },
     title: { type: String, required: true },
     description: { type: String },
-    type: { type: String, enum: ['house', 'apartment', 'barn', 'hotel', 'dorm', 'pg'] },
+    type: { type: String },
     privacy: { type: String },
     price: { type: Number, required: true },
     location: { type: String },
